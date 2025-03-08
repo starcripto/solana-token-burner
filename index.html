@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quemador de Tokens Solana</title>
     <style>
-        /* Estilos simplificados e inline para garantizar que se muestren */
+        /* Estilos simplificados */
         body {
             font-family: Arial, sans-serif;
             background-color: #222;
@@ -91,6 +91,48 @@
             color: #666;
             margin-top: 20px;
         }
+        
+        #tokens-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .token-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            background-color: #444;
+        }
+        
+        .token-item:hover {
+            background-color: #555;
+        }
+        
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        #burn-button {
+            background-color: #500;
+            color: #f99;
+            border: 1px solid #a00;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        #burn-button:hover {
+            background-color: #700;
+        }
+        
+        .checkbox {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -119,7 +161,9 @@
         <div class="card">
             <h2>Tokens Disponibles</h2>
             <p id="tokens-message">Conecta tu wallet para ver tus tokens</p>
-            <div id="tokens-list" style="display: none;"></div>
+            <div class="loading" id="loading">Cargando tokens...</div>
+            <div id="tokens-list"></div>
+            <button id="burn-button">Quemar tokens seleccionados</button>
         </div>
         
         <div id="footer">
@@ -127,7 +171,24 @@
         </div>
     </div>
 
+    <!-- Cargar primero Solana Web3 -->
+    <script src="https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js"></script>
+    
+    <!-- Luego cargar SPL Token -->
+    <script src="https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js"></script>
+
     <script>
+        // Estado de la aplicación
+        const appState = {
+            walletConnected: false,
+            walletAddress: null,
+            walletType: null,
+            walletProvider: null,
+            tokens: [],
+            selectedTokens: [],
+            connection: null
+        };
+        
         // Funciones básicas
         function showStatus(message, isError = false) {
             const status = document.getElementById('status');
@@ -138,8 +199,10 @@
             if (!isError) {
                 setTimeout(() => {
                     status.style.display = 'none';
-                }, 3000);
+                }, 5000);
             }
+            
+            console.log(`${isError ? 'ERROR' : 'INFO'}: ${message}`);
         }
         
         function updateWalletUI(connected, address = null, type = null) {
@@ -154,11 +217,190 @@
                 buttonContainer.style.display = 'none';
                 walletAddress.textContent = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
                 walletType.textContent = type;
-                tokensMessage.textContent = 'No se encontraron tokens en este wallet';
+                tokensMessage.style.display = 'none';
+                
+                // Actualizar estado
+                appState.walletConnected = true;
+                appState.walletAddress = address;
+                appState.walletType = type;
+                
+                // Cargar tokens
+                fetchTokens();
             } else {
                 walletInfo.style.display = 'none';
                 buttonContainer.style.display = 'flex';
+                tokensMessage.style.display = 'block';
                 tokensMessage.textContent = 'Conecta tu wallet para ver tus tokens';
+                document.getElementById('tokens-list').innerHTML = '';
+                document.getElementById('tokens-list').style.display = 'none';
+                document.getElementById('burn-button').style.display = 'none';
+                
+                // Reiniciar estado
+                appState.walletConnected = false;
+                appState.walletAddress = null;
+                appState.walletType = null;
+                appState.walletProvider = null;
+                appState.tokens = [];
+                appState.selectedTokens = [];
+            }
+        }
+        
+        // Inicializar conexión a Solana
+        function initConnection() {
+            try {
+                if (!solanaWeb3) {
+                    showStatus('Error: Biblioteca Solana Web3 no cargada', true);
+                    return false;
+                }
+                
+                const { Connection, clusterApiUrl } = solanaWeb3;
+                appState.connection = new Connection(clusterApiUrl('mainnet-beta'));
+                console.log('Conexión a Solana inicializada');
+                return true;
+            } catch (error) {
+                console.error('Error al inicializar conexión:', error);
+                showStatus('Error al conectar con Solana: ' + error.message, true);
+                return false;
+            }
+        }
+        
+        // Obtener tokens del wallet
+        async function fetchTokens() {
+            if (!appState.walletConnected || !appState.walletAddress) {
+                showStatus('No hay wallet conectado', true);
+                return;
+            }
+            
+            if (!appState.connection) {
+                if (!initConnection()) {
+                    return;
+                }
+            }
+            
+            try {
+                // Mostrar carga
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('tokens-list').style.display = 'none';
+                
+                // Verificar que las bibliotecas estén cargadas
+                if (!solanaWeb3 || !splToken) {
+                    throw new Error('Las bibliotecas necesarias no están cargadas correctamente');
+                }
+                
+                const { PublicKey } = solanaWeb3;
+                
+                // Obtener cuentas de token
+                console.log('Consultando tokens para:', appState.walletAddress);
+                const walletPublicKey = new PublicKey(appState.walletAddress);
+                
+                const tokenAccounts = await appState.connection.getParsedTokenAccountsByOwner(
+                    walletPublicKey,
+                    {
+                        programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+                    }
+                );
+                
+                console.log('Cuentas de token encontradas:', tokenAccounts.value.length);
+                
+                // Procesar tokens
+                const tokens = tokenAccounts.value
+                    .map(account => {
+                        const parsedInfo = account.account.data.parsed.info;
+                        return {
+                            mint: parsedInfo.mint,
+                            amount: parsedInfo.tokenAmount.uiAmount,
+                            decimals: parsedInfo.tokenAmount.decimals,
+                            tokenAccount: account.pubkey.toString()
+                        };
+                    })
+                    .filter(token => token.amount > 0);
+                
+                appState.tokens = tokens;
+                
+                // Actualizar UI
+                document.getElementById('loading').style.display = 'none';
+                
+                if (tokens.length > 0) {
+                    renderTokens(tokens);
+                    document.getElementById('tokens-list').style.display = 'block';
+                    document.getElementById('burn-button').style.display = 'block';
+                } else {
+                    const tokensMessage = document.getElementById('tokens-message');
+                    tokensMessage.style.display = 'block';
+                    tokensMessage.textContent = 'No se encontraron tokens en este wallet';
+                }
+                
+                console.log('Tokens cargados:', tokens.length);
+            } catch (error) {
+                console.error('Error al obtener tokens:', error);
+                showStatus('Error al cargar tokens: ' + error.message, true);
+                document.getElementById('loading').style.display = 'none';
+                
+                const tokensMessage = document.getElementById('tokens-message');
+                tokensMessage.style.display = 'block';
+                tokensMessage.textContent = 'Error al cargar tokens: ' + error.message;
+            }
+        }
+        
+        // Renderizar lista de tokens
+        function renderTokens(tokens) {
+            const tokensList = document.getElementById('tokens-list');
+            tokensList.innerHTML = '';
+            
+            tokens.forEach((token, index) => {
+                const tokenItem = document.createElement('div');
+                tokenItem.className = 'token-item';
+                
+                // Crear abreviatura del mint
+                const shortMint = token.mint.substring(0, 4) + '...' + token.mint.substring(token.mint.length - 4);
+                
+                tokenItem.innerHTML = `
+                    <div>
+                        <input type="checkbox" class="checkbox" data-index="${index}" id="token-${index}">
+                        <label for="token-${index}">${shortMint}</label>
+                    </div>
+                    <div>${token.amount}</div>
+                `;
+                
+                tokensList.appendChild(tokenItem);
+                
+                // Añadir evento al checkbox
+                tokenItem.querySelector('input').addEventListener('change', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    if (e.target.checked) {
+                        appState.selectedTokens.push(tokens[index]);
+                    } else {
+                        appState.selectedTokens = appState.selectedTokens.filter(t => t.mint !== tokens[index].mint);
+                    }
+                    
+                    // Actualizar botón de quemar
+                    updateBurnButton();
+                });
+            });
+        }
+        
+        // Actualizar botón de quemar
+        function updateBurnButton() {
+            const burnButton = document.getElementById('burn-button');
+            burnButton.textContent = appState.selectedTokens.length > 0 
+                ? `Quemar ${appState.selectedTokens.length} token(s)` 
+                : 'Selecciona tokens para quemar';
+            burnButton.disabled = appState.selectedTokens.length === 0;
+        }
+        
+        // Función para quemar tokens
+        async function burnTokens() {
+            if (appState.selectedTokens.length === 0) {
+                showStatus('No hay tokens seleccionados para quemar', true);
+                return;
+            }
+            
+            try {
+                showStatus('Esta función estará disponible próximamente. Tokens seleccionados: ' + appState.selectedTokens.length);
+                // En una versión completa, aquí implementaríamos la funcionalidad de quema
+            } catch (error) {
+                console.error('Error al quemar tokens:', error);
+                showStatus('Error al quemar tokens: ' + error.message, true);
             }
         }
         
@@ -171,9 +413,17 @@
                     return;
                 }
                 
+                if (!initConnection()) {
+                    return;
+                }
+                
                 showStatus('Conectando con Phantom...');
                 const resp = await window.solana.connect();
                 const address = resp.publicKey.toString();
+                
+                // Guardar proveedor
+                appState.walletProvider = window.solana;
+                
                 updateWalletUI(true, address, 'Phantom');
                 showStatus('Conectado con Phantom');
             } catch (error) {
@@ -191,9 +441,17 @@
                     return;
                 }
                 
+                if (!initConnection()) {
+                    return;
+                }
+                
                 showStatus('Conectando con Solflare...');
                 await window.solflare.connect();
                 const address = window.solflare.publicKey.toString();
+                
+                // Guardar proveedor
+                appState.walletProvider = window.solflare;
+                
                 updateWalletUI(true, address, 'Solflare');
                 showStatus('Conectado con Solflare');
             } catch (error) {
@@ -204,14 +462,27 @@
         
         // Desconectar wallet
         document.getElementById('disconnect').addEventListener('click', () => {
-            // Desconectar wallet
+            if (appState.walletProvider && appState.walletProvider.disconnect) {
+                try {
+                    appState.walletProvider.disconnect();
+                } catch (e) {
+                    console.warn('Error al desconectar wallet:', e);
+                }
+            }
+            
             updateWalletUI(false);
             showStatus('Wallet desconectado');
         });
+        
+        // Botón para quemar tokens
+        document.getElementById('burn-button').addEventListener('click', () => {
+            burnTokens();
+        });
 
-        // Mostrar mensaje inicial
+        // Inicializar
         document.addEventListener('DOMContentLoaded', () => {
-            showStatus('Bienvenido al quemador de tokens de Solana. Esta es una versión básica.', false);
+            initConnection();
+            showStatus('Bienvenido al quemador de tokens de Solana');
         });
     </script>
 </body>
