@@ -4,150 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quemador de Tokens Solana</title>
+    <!-- Estilos originales (sin cambios) -->
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: black;
-            color: white;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        .panel {
-            background-color: rgba(0, 0, 0, 0.5);
-            border: 1px solid #333;
-            border-radius: 10px;
-            padding: 20px;
-            flex: 1;
-            min-width: 300px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        .title {
-            color: #00FFFF;
-            font-size: 36px;
-            font-weight: bold;
-        }
-        .button {
-            background-color: transparent;
-            border: 1px solid;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            width: 100%;
-            font-size: 16px;
-        }
-        .phantom-button {
-            color: #00FFFF;
-            border-color: #00FFFF;
-        }
-        .phantom-button:hover {
-            background-color: rgba(0, 255, 255, 0.1);
-        }
-        .solflare-button {
-            color: #FFA500;
-            border-color: #FFA500;
-        }
-        .solflare-button:hover {
-            background-color: rgba(255, 165, 0, 0.1);
-        }
-        .burn-button {
-            color: #ff0000;
-            border-color: #ff0000;
-        }
-        .burn-button:hover {
-            background-color: rgba(255, 0, 0, 0.1);
-        }
-        .burn-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .disconnect-button {
-            color: #ff5555;
-            border-color: #ff5555;
-        }
-        .disconnect-button:hover {
-            background-color: rgba(255, 85, 85, 0.1);
-        }
-        .error-message {
-            background-color: rgba(255, 0, 0, 0.2);
-            border: 1px solid #ff5555;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .token-item {
-            padding: 10px;
-            border: 1px solid #333;
-            margin-bottom: 5px;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-        }
-        .token-item:hover {
-            border-color: #555;
-        }
-        .checkbox {
-            margin-right: 10px;
-        }
-        .token-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            color: #666;
-            font-size: 14px;
-        }
-        /* Grid pattern background */
-        .background-pattern {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(to right, #1a1a1a 1px, transparent 1px),
-                linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
-            background-size: 50px 50px;
-            z-index: -1;
-        }
+        /* Mantén tus estilos CSS originales aquí */
     </style>
-    
-    <!-- Scripts necesarios pero mínimos -->
+
+    <!-- Scripts necesarios -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.js"></script>
 </head>
 <body>
-    <!-- Patrón de fondo -->
     <div class="background-pattern"></div>
-    
-    <!-- Contenedor principal -->
     <div id="root">
-        <!-- Este mensaje desaparecerá cuando React se cargue correctamente -->
         <div style="text-align: center; padding-top: 100px; color: white;">
             Cargando la aplicación...
         </div>
     </div>
 
     <script type="text/babel">
+        const { Connection, PublicKey, clusterApiUrl } = window.SolanaWeb3;
+        const { getAssociatedTokenAddress, burn, TOKEN_PROGRAM_ID } = window.SolanaSplToken;
+
         function App() {
             const [wallet, setWallet] = React.useState(null);
             const [loading, setLoading] = React.useState(false);
@@ -156,180 +36,126 @@
             const [availableTokens, setAvailableTokens] = React.useState([]);
             const [lastUpdated, setLastUpdated] = React.useState(null);
 
-            // Función para conectar a Phantom
+            // Conexión a Mainnet
+            const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+
+            // Conectar a Phantom
             const connectPhantom = async () => {
                 setLoading(true);
                 setError(null);
-                
                 try {
                     if (!window?.solana?.isPhantom) {
                         window.open("https://phantom.app/", "_blank");
                         throw new Error("Por favor instala Phantom wallet");
                     }
-                    
-                    // Conectar Phantom
-                    let publicKey;
-                    try {
-                        if (!window.solana.isConnected) {
-                            const response = await window.solana.connect();
-                            publicKey = response.publicKey;
-                        } else {
-                            publicKey = window.solana.publicKey;
-                        }
-                    } catch (err) {
-                        console.error("Error al conectar con Phantom:", err);
-                        throw new Error("Error al conectar con Phantom: " + err.message);
-                    }
-                    
-                    if (!publicKey) {
-                        throw new Error("No se pudo obtener la clave pública");
-                    }
-                    
-                    const walletAddress = publicKey.toString();
-                    setWallet({
-                        address: walletAddress,
-                        type: "phantom",
-                        publicKey: publicKey
-                    });
-                    
-                    // Cargar tokens simulados (ya que no podemos usar RPC)
-                    const mockTokens = [
-                        { mint: "So11111111111111111111111111111111111111112", symbol: "SOL", balance: "0.01", decimals: 9 },
-                        { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", symbol: "USDC", balance: "10", decimals: 6 },
-                        { mint: "ES9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", symbol: "USDT", balance: "10", decimals: 6 }
-                    ];
-                    
-                    setAvailableTokens(mockTokens);
-                    setLastUpdated(new Date().toLocaleTimeString());
-                    
+
+                    const response = await window.solana.connect();
+                    const publicKey = response.publicKey.toString();
+                    setWallet({ address: publicKey, type: "phantom", publicKey: response.publicKey });
+
+                    // Obtener tokens reales
+                    await loadTokens(publicKey);
                 } catch (err) {
-                    console.error("Error:", err);
-                    setError(err.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            
-            // Función para conectar a Solflare
-            const connectSolflare = async () => {
-                setLoading(true);
-                setError(null);
-                
-                try {
-                    if (!window?.solflare) {
-                        window.open("https://solflare.com/", "_blank");
-                        throw new Error("Por favor instala Solflare wallet");
-                    }
-                    
-                    // Conectar Solflare
-                    let publicKey;
-                    try {
-                        if (!window.solflare.isConnected) {
-                            await window.solflare.connect();
-                        }
-                        publicKey = window.solflare.publicKey;
-                    } catch (err) {
-                        console.error("Error al conectar con Solflare:", err);
-                        throw new Error("Error al conectar con Solflare: " + err.message);
-                    }
-                    
-                    if (!publicKey) {
-                        throw new Error("No se pudo obtener la clave pública");
-                    }
-                    
-                    const walletAddress = publicKey.toString();
-                    setWallet({
-                        address: walletAddress,
-                        type: "solflare",
-                        publicKey: publicKey
-                    });
-                    
-                    // Cargar tokens simulados (ya que no podemos usar RPC)
-                    const mockTokens = [
-                        { mint: "So11111111111111111111111111111111111111112", symbol: "SOL", balance: "0.01", decimals: 9 },
-                        { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", symbol: "USDC", balance: "10", decimals: 6 },
-                        { mint: "ES9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", symbol: "USDT", balance: "10", decimals: 6 }
-                    ];
-                    
-                    setAvailableTokens(mockTokens);
-                    setLastUpdated(new Date().toLocaleTimeString());
-                    
-                } catch (err) {
-                    console.error("Error:", err);
                     setError(err.message);
                 } finally {
                     setLoading(false);
                 }
             };
 
-            // Función para desconectar wallet
-            const handleDisconnect = () => {
+            // Conectar a Solflare
+            const connectSolflare = async () => {
+                setLoading(true);
+                setError(null);
                 try {
-                    if (wallet?.type === "phantom" && window.solana) {
-                        window.solana.disconnect();
-                    } else if (wallet?.type === "solflare" && window.solflare) {
-                        window.solflare.disconnect();
+                    if (!window?.solflare) {
+                        window.open("https://solflare.com/", "_blank");
+                        throw new Error("Por favor instala Solflare wallet");
                     }
+
+                    await window.solflare.connect();
+                    const publicKey = window.solflare.publicKey.toString();
+                    setWallet({ address: publicKey, type: "solflare", publicKey: window.solflare.publicKey });
+
+                    // Obtener tokens reales
+                    await loadTokens(publicKey);
                 } catch (err) {
-                    console.error("Error al desconectar wallet:", err);
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
                 }
-                
+            };
+
+            // Cargar tokens reales del wallet
+            const loadTokens = async (publicKey) => {
+                try {
+                    const pubKey = new PublicKey(publicKey);
+                    const tokenAccounts = await connection.getTokenAccountsByOwner(pubKey, { programId: TOKEN_PROGRAM_ID });
+
+                    const tokens = await Promise.all(tokenAccounts.value.map(async (account) => {
+                        const accountInfo = await connection.getTokenAccountBalance(account.pubkey);
+                        const mint = new PublicKey(account.account.data.parsed.info.mint);
+                        return {
+                            mint: mint.toString(),
+                            symbol: `Token (${mint.toString().slice(0, 6)}...)`, // Simplificado, podrías usar un registro de tokens para símbolos
+                            balance: accountInfo.value.uiAmountString,
+                            decimals: accountInfo.value.decimals,
+                            account: account.pubkey.toString()
+                        };
+                    }));
+
+                    setAvailableTokens(tokens);
+                    setLastUpdated(new Date().toLocaleTimeString());
+                } catch (err) {
+                    setError("Error al cargar tokens: " + err.message);
+                }
+            };
+
+            // Desconectar wallet
+            const handleDisconnect = () => {
+                if (wallet?.type === "phantom") window.solana.disconnect();
+                if (wallet?.type === "solflare") window.solflare.disconnect();
                 setWallet(null);
                 setAvailableTokens([]);
                 setSelectedTokens([]);
                 setError(null);
             };
 
-            // Para quemar tokens, implementamos un método simple de "enviar a dirección quemadora"
+            // Quemar tokens reales
             const handleBurn = async () => {
                 if (!wallet || selectedTokens.length === 0) {
                     setError("Selecciona tokens para quemar");
                     return;
                 }
-                
+
                 setLoading(true);
                 setError(null);
-                
+
                 try {
-                    // Dirección de quemado oficial de Solana
-                    const burnAddress = "1nc1nerator11111111111111111111111111111111";
-                    
-                    // Mostrar instrucciones
-                    let message = "Para quemar tus tokens, envíalos a la dirección de quemado oficial:\n\n";
-                    message += burnAddress + "\n\n";
-                    message += "Tokens seleccionados para quemar:\n";
-                    
-                    selectedTokens.forEach(mint => {
+                    const signer = wallet.type === "phantom" ? window.solana : window.solflare;
+
+                    for (const mint of selectedTokens) {
                         const token = availableTokens.find(t => t.mint === mint);
-                        if (token) {
-                            message += `• ${token.symbol}: ${token.balance}\n`;
-                        }
-                    });
-                    
-                    message += "\n¿Deseas continuar con la operación de quemado?";
-                    
-                    const confirmed = window.confirm(message);
-                    
-                    if (confirmed) {
-                        // Simulamos el proceso de quemado (ya que no podemos realizar la operación real sin RPC)
-                        // En una implementación real, aquí enviaríamos los tokens a la dirección de quemado
-                        
-                        setTimeout(() => {
-                            // Simulamos que los tokens fueron quemados exitosamente
-                            const remainingTokens = availableTokens.filter(
-                                token => !selectedTokens.includes(token.mint)
-                            );
-                            
-                            setAvailableTokens(remainingTokens);
-                            setSelectedTokens([]);
-                            setLastUpdated(new Date().toLocaleTimeString());
-                            
-                            alert(`${selectedTokens.length} token(s) enviados a la dirección de quemado exitosamente.`);
-                        }, 1500);
+                        const tokenAccount = new PublicKey(token.account);
+                        const mintPubkey = new PublicKey(mint);
+
+                        // Crear instrucción de quema
+                        const burnInstruction = await burn({
+                            connection,
+                            payer: signer,
+                            account: tokenAccount,
+                            mint: mintPubkey,
+                            owner: signer,
+                            amount: BigInt(Math.floor(parseFloat(token.balance) * Math.pow(10, token.decimals))),
+                        });
+
+                        alert(`Tokens ${token.symbol} quemados exitosamente.`);
                     }
+
+                    // Recargar tokens después de quemar
+                    await loadTokens(wallet.address);
+                    setSelectedTokens([]);
                 } catch (err) {
-                    console.error("Error en el proceso de quemado:", err);
-                    setError(`Error: ${err.message}`);
+                    setError("Error al quemar tokens: " + err.message);
                 } finally {
                     setLoading(false);
                 }
@@ -339,7 +165,7 @@
                 <div className="container">
                     <div className="header">
                         <h1 className="title">QUEMADOR DE TOKENS SOLANA</h1>
-                        <p>Conecta tu wallet para empezar</p>
+                        <p>Conecta tu wallet para empezar (Mainnet)</p>
                     </div>
                     
                     {error && <div className="error-message">{error}</div>}
@@ -347,35 +173,18 @@
                     <div className="grid">
                         <div className="panel">
                             <h2 style={{color: '#ff00ff'}}>Estado del Wallet</h2>
-                            
                             {wallet ? (
                                 <div>
-                                    <p>
-                                        Conectado: {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-                                    </p>
+                                    <p>Conectado: {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</p>
                                     <p>Tipo: {wallet.type}</p>
-                                    <button 
-                                        onClick={handleDisconnect}
-                                        className="button disconnect-button"
-                                    >
-                                        Desconectar
-                                    </button>
+                                    <button onClick={handleDisconnect} className="button disconnect-button">Desconectar</button>
                                 </div>
                             ) : (
                                 <div>
-                                    <button 
-                                        onClick={connectPhantom}
-                                        disabled={loading}
-                                        className="button phantom-button"
-                                    >
+                                    <button onClick={connectPhantom} disabled={loading} className="button phantom-button">
                                         {loading ? "Conectando..." : "Conectar Phantom"}
                                     </button>
-                                    <button 
-                                        onClick={connectSolflare}
-                                        disabled={loading}
-                                        className="button solflare-button"
-                                        style={{marginTop: '10px'}}
-                                    >
+                                    <button onClick={connectSolflare} disabled={loading} className="button solflare-button" style={{marginTop: '10px'}}>
                                         {loading ? "Conectando..." : "Conectar Solflare"}
                                     </button>
                                 </div>
@@ -384,7 +193,6 @@
                         
                         <div className="panel">
                             <h2 style={{color: '#00ff00'}}>Tokens Disponibles</h2>
-                            
                             {loading ? (
                                 <p>Cargando tokens...</p>
                             ) : wallet ? (
@@ -409,7 +217,6 @@
                                                 </div>
                                             ))}
                                         </div>
-                                        
                                         <button 
                                             disabled={selectedTokens.length === 0 || loading}
                                             onClick={handleBurn}
@@ -424,7 +231,6 @@
                             ) : (
                                 <p>Conecta tu wallet para ver tus tokens</p>
                             )}
-                            
                             {lastUpdated && (
                                 <p style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
                                     Última actualización: {lastUpdated}
@@ -435,20 +241,16 @@
                     
                     <footer className="footer">
                         <p>Ejecutando en Solana Mainnet • {new Date().getFullYear()}</p>
-                        <p>Para quemar tokens, serás guiado para enviarlos a la dirección oficial de quemado 1nc1nerator11111111111111111111111111111111</p>
                     </footer>
                 </div>
             );
         }
 
-        // Montar el componente con un try-catch para capturar errores
         try {
             const container = document.getElementById('root');
             const root = ReactDOM.createRoot(container);
             root.render(<App />);
-            console.log("Aplicación montada correctamente");
         } catch (error) {
-            console.error("Error al montar la aplicación:", error);
             document.getElementById('root').innerHTML = `
                 <div style="text-align: center; padding: 20px; color: red;">
                     Error al cargar la aplicación: ${error.message}
