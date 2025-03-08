@@ -3,1220 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quemador de Tokens Solana</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:">
+    <title>Diagnóstico - Quemador Solana</title>
     <style>
-      /* Estilos globales */
-      body {
-        margin: 0;
-        padding: 0;
-        background-color: #121212;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      }
-    
-      #solana-token-burner {
-        color: #fff;
-        max-width: 800px;
-        margin: 20px auto;
-        padding: 20px;
-        background-color: #000;
-        border-radius: 16px;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      }
-    
-      /* Fondo con cuadrícula */
-      #solana-token-burner:before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-image: linear-gradient(to right, #1a1a1a 1px, transparent 1px), 
-                          linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
-        background-size: 50px 50px;
-        z-index: 0;
-      }
-    
-      /* Contenido principal */
-      #stb-content {
-        position: relative;
-        z-index: 1;
-      }
-    
-      /* Encabezado */
-      #stb-header {
-        text-align: center;
-        margin-bottom: 20px;
-      }
-    
-      #stb-header h1 {
-        color: #00FFFF;
-        font-size: 32px;
-        font-weight: bold;
-        margin-bottom: 10px;
-      }
-    
-      #stb-header p {
-        color: #aaa;
-        font-size: 16px;
-      }
-    
-      /* Panel de error */
-      #stb-error {
-        display: none;
-        padding: 12px;
-        background-color: rgba(255, 0, 0, 0.2);
-        border: 1px solid #ff6666;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        color: #ff9999;
-        text-align: center;
-      }
-    
-      /* Paneles principales */
-      .stb-panel {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        margin-bottom: 20px;
-      }
-    
-      .stb-card {
-        flex: 1;
-        min-width: 260px;
-        padding: 20px;
-        border-radius: 12px;
-        background-color: rgba(0, 0, 0, 0.4);
-        backdrop-filter: blur(4px);
-        border: 1px solid #333;
-      }
-    
-      /* Panel de Wallet */
-      #stb-wallet-panel h2 {
-        color: #ff00ff;
-        font-size: 20px;
-        margin-bottom: 15px;
-      }
-    
-      .stb-wallet-connected {
-        display: none;
-      }
-    
-      .stb-wallet-address {
-        color: #ddd;
-        margin-bottom: 10px;
-        word-break: break-all;
-      }
-    
-      .stb-wallet-type {
-        color: #ddd;
-        margin-bottom: 15px;
-      }
-    
-      #stb-disconnect-btn {
-        background-color: rgba(255, 59, 48, 0.2);
-        color: #ff3b30;
-        border: 1px solid #ff3b30;
-        padding: 8px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: background-color 0.2s;
-      }
-    
-      #stb-disconnect-btn:hover {
-        background-color: rgba(255, 59, 48, 0.3);
-      }
-    
-      .stb-wallet-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-    
-      .stb-connect-btn {
-        padding: 10px 16px;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 500;
-        border: none;
-        cursor: pointer;
-        transition: background-color 0.2s;
-      }
-    
-      #stb-connect-phantom {
-        background-color: #333;
-        color: #00FFFF;
-        border: 1px solid #00FFFF;
-      }
-    
-      #stb-connect-phantom:hover {
-        background-color: rgba(0, 255, 255, 0.1);
-      }
-    
-      #stb-connect-solflare {
-        background-color: #333;
-        color: #FFA500;
-        border: 1px solid #FFA500;
-      }
-    
-      #stb-connect-solflare:hover {
-        background-color: rgba(255, 165, 0, 0.1);
-      }
-    
-      /* Panel de Tokens */
-      #stb-tokens-panel h2 {
-        color: #00FF00;
-        font-size: 20px;
-        margin-bottom: 15px;
-      }
-    
-      #stb-tokens-loading, 
-      #stb-tokens-empty, 
-      #stb-tokens-connect-wallet {
-        color: #aaa;
-        text-align: center;
-        padding: 20px 0;
-        display: none;
-      }
-    
-      #stb-tokens-list {
-        max-height: 300px;
-        overflow-y: auto;
-        margin-bottom: 15px;
-        display: none;
-      }
-    
-      .stb-token-item {
-        display: flex;
-        align-items: center;
-        padding: 10px;
-        border: 1px solid #333;
-        border-radius: 8px;
-        margin-bottom: 8px;
-      }
-    
-      .stb-token-item:hover {
-        border-color: #555;
-      }
-    
-      .stb-token-checkbox {
-        margin-right: 10px;
-        appearance: none;
-        -webkit-appearance: none;
-        width: 20px;
-        height: 20px;
-        border: 1px solid #555;
-        border-radius: 4px;
-        background-color: transparent;
-        position: relative;
-        cursor: pointer;
-      }
-    
-      .stb-token-checkbox:checked {
-        background-color: #00FF00;
-        border-color: #00FF00;
-      }
-    
-      .stb-token-checkbox:checked:after {
-        content: "✓";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #000;
-        font-size: 14px;
-      }
-    
-      .stb-token-details {
-        color: #ddd;
-      }
-    
-      #stb-burn-btn {
-        width: 100%;
-        padding: 10px 16px;
-        border-radius: 8px;
-        background-color: #333;
-        color: #FF0000;
-        border: 1px solid #FF0000;
-        font-size: 16px;
-        font-weight: 500;
-        cursor: pointer;
-        display: none;
-      }
-    
-      #stb-burn-btn:hover {
-        background-color: rgba(255, 0, 0, 0.1);
-      }
-    
-      #stb-burn-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-    
-      /* Pie de página */
-      #stb-footer {
-        text-align: center;
-        color: #555;
-        font-size: 14px;
-        margin-top: 20px;
-      }
-    
-      /* Cuadro de diálogo de confirmación */
-      #stb-confirm-dialog {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.8);
-        z-index: 100;
-        align-items: center;
-        justify-content: center;
-      }
-      
-      .stb-confirm-box {
-        background-color: #111;
-        border: 1px solid #333;
-        border-radius: 12px;
-        padding: 20px;
-        width: 90%;
-        max-width: 500px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      }
-      
-      .stb-confirm-title {
-        color: #ff3333;
-        font-size: 20px;
-        font-weight: bold;
-        margin-bottom: 15px;
-        text-align: center;
-      }
-      
-      .stb-confirm-message {
-        color: #ddd;
-        margin-bottom: 20px;
-        line-height: 1.5;
-      }
-      
-      .stb-confirm-tokens {
-        background-color: rgba(255, 0, 0, 0.1);
-        border: 1px solid #ff3333;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 20px;
-        max-height: 150px;
-        overflow-y: auto;
-      }
-      
-      .stb-confirm-token-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 5px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      
-      .stb-confirm-token-item:last-child {
-        border-bottom: none;
-      }
-      
-      .stb-confirm-buttons {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-      }
-      
-      .stb-confirm-button {
-        flex: 1;
-        padding: 10px;
-        border-radius: 8px;
-        font-size: 16px;
-        cursor: pointer;
-        border: none;
-      }
-      
-      .stb-confirm-cancel {
-        background-color: #333;
-        color: #ddd;
-      }
-      
-      .stb-confirm-proceed {
-        background-color: #ff3333;
-        color: white;
-      }
-      
-      /* Indicador de transacción */
-      .stb-tx-status {
-        margin-top: 10px;
-        padding: 8px;
-        background-color: rgba(0, 0, 0, 0.5);
-        border-radius: 8px;
-        color: #aaa;
-        display: none;
-      }
-      
-      .stb-tx-hash {
-        font-family: monospace;
-        font-size: 12px;
-        word-break: break-all;
-        margin-top: 5px;
-        color: #00FFFF;
-      }
-      
-      .stb-tx-hash a {
-        color: #00FFFF;
-        text-decoration: none;
-      }
-      
-      .stb-tx-hash a:hover {
-        text-decoration: underline;
-      }
-      
-      /* Estilos para la sección de donación */
-      .stb-donation-container {
-        margin-top: 20px;
-        padding: 15px;
-        border: 1px dashed #555;
-        border-radius: 8px;
-        text-align: center;
-        display: none;
-      }
-      
-      .stb-donation-message {
-        color: #aaa;
-        margin-bottom: 12px;
-        font-size: 14px;
-        line-height: 1.4;
-      }
-      
-      .stb-donation-address {
-        background-color: rgba(0, 0, 0, 0.3);
-        padding: 8px;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 12px;
-        word-break: break-all;
-        margin: 10px 0;
-        color: #00FFFF;
-      }
-      
-      .stb-donate-btn {
-        background-color: #333;
-        color: #00FFFF;
-        border: 1px solid #00FFFF;
-        padding: 8px 16px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s;
-      }
-      
-      .stb-donate-btn:hover {
-        background-color: rgba(0, 255, 255, 0.1);
-      }
-      
-      .stb-donation-options {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        margin-top: 10px;
-      }
-      
-      .stb-donation-amount {
-        background-color: #222;
-        color: white;
-        border: 1px solid #444;
-        padding: 6px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-      }
-      
-      .stb-donation-amount:hover {
-        background-color: #333;
-        border-color: #555;
-      }
-      
-      .stb-donation-amount.selected {
-        background-color: #00FFFF;
-        color: black;
-        border-color: #00FFFF;
-      }
-      
-      .stb-thank-you {
-        color: #00FF00;
-        font-weight: bold;
-        display: none;
-        margin-top: 10px;
-      }
-      
-      @media (max-width: 768px) {
-        .stb-panel {
-          flex-direction: column;
+        body { 
+            background: #111; 
+            color: white; 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
         }
-    
-        #stb-header h1 {
-          font-size: 24px;
+        .card {
+            background: #222;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 600px;
         }
-        
-        .stb-donation-options {
-          flex-direction: column;
-          align-items: center;
+        h1 { color: #00FFFF; }
+        button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            cursor: pointer;
         }
-        
-        .stb-donation-amount {
-          width: 100%;
-          max-width: 200px;
+        button:hover { background: #444; }
+        #error, #success {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: none;
         }
-      }
+        #error { background: rgba(255,0,0,0.2); border: 1px solid #ff6666; }
+        #success { background: rgba(0,255,0,0.2); border: 1px solid #66ff66; }
+        .log { 
+            background: #000; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin-top: 10px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry { margin: 5px 0; }
+        .error { color: #ff6666; }
+        .success { color: #66ff66; }
+        .info { color: #6666ff; }
     </style>
 </head>
 <body>
-    <div id="solana-token-burner">
-      <div id="stb-content">
-        <!-- Encabezado -->
-        <div id="stb-header">
-          <h1>QUEMADOR DE TOKENS SOLANA</h1>
-          <p>Conecta tu wallet para empezar</p>
-        </div>
-    
-        <!-- Panel de Error -->
-        <div id="stb-error"></div>
-    
-        <!-- Paneles Principales -->
-        <div class="stb-panel">
-          <!-- Panel de Wallet -->
-          <div id="stb-wallet-panel" class="stb-card">
-            <h2>Estado del Wallet</h2>
-            
-            <!-- Info cuando el wallet está conectado -->
-            <div class="stb-wallet-connected">
-              <p class="stb-wallet-address" id="stb-wallet-address"></p>
-              <p class="stb-wallet-type" id="stb-wallet-type"></p>
-              <button id="stb-disconnect-btn">Desconectar</button>
-            </div>
-    
-            <!-- Botones de conexión cuando no hay wallet -->
-            <div class="stb-wallet-buttons">
-              <button id="stb-connect-phantom" class="stb-connect-btn">Conectar Phantom</button>
-              <button id="stb-connect-solflare" class="stb-connect-btn">Conectar Solflare</button>
-            </div>
-          </div>
-    
-          <!-- Panel de Tokens -->
-          <div id="stb-tokens-panel" class="stb-card">
-            <h2>Tokens Disponibles</h2>
-    
-            <!-- Estado de carga -->
-            <p id="stb-tokens-loading">Cargando tokens...</p>
-            
-            <!-- Mensaje cuando no hay wallet conectado -->
-            <p id="stb-tokens-connect-wallet">Conecta tu wallet para ver tus tokens</p>
-            
-            <!-- Mensaje cuando no hay tokens -->
-            <p id="stb-tokens-empty">No se encontraron tokens en este wallet</p>
-    
-            <!-- Lista de tokens -->
-            <div id="stb-tokens-list"></div>
-    
-            <!-- Botón para quemar -->
-            <button id="stb-burn-btn" disabled>Quemar Tokens</button>
-            
-            <!-- Información de la transacción -->
-            <div class="stb-tx-status" id="stb-tx-status">
-              <div id="stb-tx-message">Procesando transacción...</div>
-              <div class="stb-tx-hash" id="stb-tx-hash"></div>
-            </div>
-            
-            <!-- Sección de donación (estilo Sol Incinerator) -->
-            <div class="stb-donation-container" id="stb-donation-container">
-              <div class="stb-donation-message">
-                Este servicio es completamente gratuito. Si te ha resultado útil, considera hacer una donación voluntaria para mantener este quemador de tokens funcionando.
-              </div>
-              <div class="stb-donation-options">
-                <button class="stb-donation-amount" data-amount="0.01">0.01 SOL</button>
-                <button class="stb-donation-amount" data-amount="0.05">0.05 SOL</button>
-                <button class="stb-donation-amount" data-amount="0.1">0.1 SOL</button>
-              </div>
-              <div class="stb-donation-address" id="stb-donation-address">
-                <!-- La dirección se llenará con JavaScript -->
-              </div>
-              <button class="stb-donate-btn" id="stb-donate-btn">Enviar Donación</button>
-              <div class="stb-thank-you" id="stb-thank-you">
-                ¡Gracias por tu donación! 🙏
-              </div>
-            </div>
-          </div>
-        </div>
-    
-        <!-- Pie de página -->
-        <div id="stb-footer">
-          Ejecutando en Solana Mainnet • <span id="stb-year"></span>
-        </div>
-      </div>
-      
-      <!-- Diálogo de confirmación -->
-      <div id="stb-confirm-dialog">
-        <div class="stb-confirm-box">
-          <div class="stb-confirm-title">Confirmar Quema de Tokens</div>
-          <div class="stb-confirm-message">
-            Estás a punto de quemar los siguientes tokens. Esta acción es <strong>irreversible</strong>. 
-            Por favor, confirma que deseas continuar.
-          </div>
-          <div class="stb-confirm-tokens" id="stb-confirm-tokens-list"></div>
-          <div class="stb-confirm-buttons">
-            <button class="stb-confirm-button stb-confirm-cancel" id="stb-confirm-cancel">Cancelar</button>
-            <button class="stb-confirm-button stb-confirm-proceed" id="stb-confirm-proceed">Confirmar</button>
-          </div>
-        </div>
-      </div>
+    <div class="card">
+        <h1>Diagnóstico del Quemador</h1>
+        <p>Esta página ayuda a identificar por qué no funciona el quemador de tokens.</p>
+        
+        <div id="error"></div>
+        <div id="success"></div>
+        
+        <h2>Pruebas:</h2>
+        <button id="test-js">1. Probar JavaScript</button>
+        <button id="test-libs">2. Probar carga de bibliotecas</button>
+        <button id="test-phantom">3. Probar Phantom</button>
+        <button id="test-solflare">4. Probar Solflare</button>
+        
+        <h2>Log:</h2>
+        <div class="log" id="log"></div>
     </div>
 
-    <!-- IMPORTANTE: Cargar los scripts de manera confiable -->
     <script>
-      // Función para cargar scripts de manera confiable
-      function loadScript(src, callback) {
-        console.log('Cargando script:', src);
-        var script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = src;
-        script.onload = function() {
-          console.log('Script cargado con éxito:', src);
-          if(callback) callback();
-        };
-        script.onerror = function() {
-          console.error('Error al cargar script:', src);
-          document.getElementById('stb-error').textContent = 'Error al cargar dependencias. Intenta actualizar la página.';
-          document.getElementById('stb-error').style.display = 'block';
-        };
-        document.body.appendChild(script);
-      }
-
-      // Cargar los scripts necesarios
-      document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('stb-error').textContent = 'Cargando dependencias...';
-        document.getElementById('stb-error').style.display = 'block';
+        // Elementos DOM
+        const errorEl = document.getElementById('error');
+        const successEl = document.getElementById('success');
+        const logEl = document.getElementById('log');
         
-        // Cargar web3.js
-        loadScript('https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js', function() {
-          // Después cargar spl-token
-          loadScript('https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js', function() {
-            // Iniciar la aplicación
-            document.getElementById('stb-error').textContent = 'Dependencias cargadas. Ya puedes usar la aplicación.';
-            setTimeout(function() {
-              document.getElementById('stb-error').style.display = 'none';
-            }, 3000);
-            initSolanaBurner();
-          });
+        // Funciones de log
+        function showError(message) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            successEl.style.display = 'none';
+            log('error', message);
+        }
+        
+        function showSuccess(message) {
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            log('success', message);
+        }
+        
+        function log(type, message) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        // Prueba 1: JavaScript básico
+        document.getElementById('test-js').addEventListener('click', function() {
+            try {
+                log('info', 'Probando JavaScript básico...');
+                // Simple prueba de JS
+                const test = 1 + 1;
+                if (test === 2) {
+                    showSuccess('JavaScript funciona correctamente');
+                } else {
+                    showError('Error inesperado en JavaScript');
+                }
+            } catch (e) {
+                showError('Error en JavaScript: ' + e.message);
+            }
         });
-      });
-
-      // Función para inicializar la aplicación
-      function initSolanaBurner() {
-        // Inicializar la aplicación
-        const SolanaBurner = {
-          elements: {
-            // Elementos originales
-            error: document.getElementById('stb-error'),
-            walletConnected: document.querySelector('.stb-wallet-connected'),
-            walletButtons: document.querySelector('.stb-wallet-buttons'),
-            walletAddress: document.getElementById('stb-wallet-address'),
-            walletType: document.getElementById('stb-wallet-type'),
-            disconnectBtn: document.getElementById('stb-disconnect-btn'),
-            connectPhantomBtn: document.getElementById('stb-connect-phantom'),
-            connectSolflareBtn: document.getElementById('stb-connect-solflare'),
-            tokensLoading: document.getElementById('stb-tokens-loading'),
-            tokensConnectWallet: document.getElementById('stb-tokens-connect-wallet'),
-            tokensEmpty: document.getElementById('stb-tokens-empty'),
-            tokensList: document.getElementById('stb-tokens-list'),
-            burnBtn: document.getElementById('stb-burn-btn'),
-            yearSpan: document.getElementById('stb-year'),
-            confirmDialog: document.getElementById('stb-confirm-dialog'),
-            confirmTokensList: document.getElementById('stb-confirm-tokens-list'),
-            confirmCancelBtn: document.getElementById('stb-confirm-cancel'),
-            confirmProceedBtn: document.getElementById('stb-confirm-proceed'),
-            txStatus: document.getElementById('stb-tx-status'),
-            txMessage: document.getElementById('stb-tx-message'),
-            txHash: document.getElementById('stb-tx-hash'),
+        
+        // Prueba 2: Cargar bibliotecas
+        document.getElementById('test-libs').addEventListener('click', function() {
+            log('info', 'Probando carga de bibliotecas...');
             
-            // Elementos de donación
-            donationContainer: document.getElementById('stb-donation-container'),
-            donationAmounts: document.querySelectorAll('.stb-donation-amount'),
-            donationAddress: document.getElementById('stb-donation-address'),
-            donateBtn: document.getElementById('stb-donate-btn'),
-            thankYou: document.getElementById('stb-thank-you')
-          },
-          state: {
-            wallet: null,
-            tokens: [],
-            selectedTokens: [],
-            connection: null,
-            pendingBurn: false,
-            selectedDonationAmount: 0.01,
-            // ⚠️ IMPORTANTE: REEMPLAZA ESTA LÍNEA CON TU DIRECCIÓN DE WALLET DE SOLANA ⚠️
-            donationAddress: '8W48xBQd9wRfm6Vy6rToeQPRduGpmj6i5qL4hW2AFu9a',
-            rpcEndpoints: [
-              'https://api.mainnet-beta.solana.com',
-              'https://solana-api.projectserum.com',
-              'https://rpc.ankr.com/solana',
-              'https://ssc-dao.genesysgo.net'
-            ],
-            currentEndpointIndex: 0
-          },
-    
-          init() {
-            // Inicializar la conexión a Solana
-            this.initSolanaConnection();
-            this.setupEventListeners();
-            this.updateUI();
-            this.elements.yearSpan.textContent = new Date().getFullYear();
-            
-            // Mostrar la dirección de donación
-            this.elements.donationAddress.textContent = this.state.donationAddress;
-            
-            // Mostrar mensaje de éxito
-            console.log("Aplicación inicializada correctamente");
-          },
-          
-          // Inicializar la conexión con la mainnet de Solana
-          async initSolanaConnection() {
-            try {
-              console.log("Iniciando conexión a Solana...");
-              
-              // Usar solanaWeb3 del CDN
-              const { Connection, clusterApiUrl } = solanaWeb3;
-              
-              // Conectar a un endpoint aleatorio para distribuir la carga
-              const randomIndex = Math.floor(Math.random() * this.state.rpcEndpoints.length);
-              const endpoint = this.state.rpcEndpoints[randomIndex];
-              
-              console.log("Usando endpoint:", endpoint);
-              
-              // Crear conexión
-              this.state.connection = new Connection(endpoint, 'confirmed');
-              console.log("Conexión a Solana establecida");
-              
-              // Verificar que la conexión funciona
-              this.state.connection.getVersion().then(version => {
-                console.log("Versión de Solana:", version);
-              }).catch(err => {
-                console.error("Error al verificar la versión:", err);
-              });
-              
-            } catch (err) {
-              console.error("Error al inicializar la conexión con Solana:", err);
-              this.showError("No se pudo conectar con la blockchain de Solana");
-            }
-          },
-    
-          setupEventListeners() {
-            console.log("Configurando event listeners...");
-            
-            // Botones de conexión
-            this.elements.connectPhantomBtn.addEventListener('click', () => {
-              console.log("Clic en botón Phantom");
-              this.connectWallet('phantom');
-            });
-            
-            this.elements.connectSolflareBtn.addEventListener('click', () => {
-              console.log("Clic en botón Solflare");
-              this.connectWallet('solflare');
-            });
-            
-            // Botón de desconexión
-            this.elements.disconnectBtn.addEventListener('click', () => {
-              console.log("Clic en botón desconectar");
-              this.disconnectWallet();
-            });
-            
-            // Botón de quemar
-            this.elements.burnBtn.addEventListener('click', () => {
-              console.log("Clic en botón quemar");
-              this.showBurnConfirmation();
-            });
-            
-            // Botones de confirmación
-            this.elements.confirmCancelBtn.addEventListener('click', () => {
-              console.log("Clic en botón cancelar");
-              this.cancelBurn();
-            });
-            
-            this.elements.confirmProceedBtn.addEventListener('click', () => {
-              console.log("Clic en botón confirmar");
-              this.proceedWithBurn();
-            });
-            
-            // Configurar eventos para donaciones
-            this.elements.donationAmounts.forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                // Eliminar selección previa
-                this.elements.donationAmounts.forEach(b => b.classList.remove('selected'));
+            // Cargar Solana Web3
+            const script1 = document.createElement('script');
+            script1.src = 'https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js';
+            script1.onload = function() {
+                log('success', 'Biblioteca Solana Web3.js cargada correctamente');
                 
-                // Seleccionar nuevo monto
-                btn.classList.add('selected');
-                this.state.selectedDonationAmount = parseFloat(btn.dataset.amount);
-                console.log("Monto de donación seleccionado:", this.state.selectedDonationAmount);
-              });
-            });
-            
-            // Seleccionar el primer monto por defecto
-            this.elements.donationAmounts[0].classList.add('selected');
-            
-            // Botón de donación
-            this.elements.donateBtn.addEventListener('click', () => {
-              console.log("Clic en botón donar");
-              this.sendDonation();
-            });
-            
-            console.log("Event listeners configurados");
-          },
-    
-          // Mostrar errores
-          showError(message) {
-            console.error("ERROR:", message);
-            this.elements.error.textContent = message;
-            this.elements.error.style.display = 'block';
-            
-            // Ocultar el error después de 5 segundos
-            setTimeout(() => {
-              this.elements.error.style.display = 'none';
-            }, 5000);
-          },
-    
-          // Actualizar la interfaz según el estado
-          updateUI() {
-            if (this.state.wallet) {
-              // Mostrar el wallet conectado
-              this.elements.walletConnected.style.display = 'block';
-              this.elements.walletButtons.style.display = 'none';
-              
-              // Actualizar información del wallet
-              this.elements.walletAddress.textContent = `Conectado: ${this.state.wallet.address.slice(0, 6)}...${this.state.wallet.address.slice(-4)}`;
-              this.elements.walletType.textContent = `Tipo: ${this.state.wallet.type}`;
-              
-              // Actualizar panel de tokens
-              this.elements.tokensConnectWallet.style.display = 'none';
-              
-              if (this.state.tokens.length > 0) {
-                this.elements.tokensEmpty.style.display = 'none';
-                this.elements.tokensList.style.display = 'block';
-                this.elements.burnBtn.style.display = 'block';
+                // Cargar SPL Token
+                const script2 = document.createElement('script');
+                script2.src = 'https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js';
+                script2.onload = function() {
+                    log('success', 'Biblioteca SPL Token cargada correctamente');
+                    
+                    // Verificar objetos globales
+                    if (typeof solanaWeb3 !== 'undefined' && typeof splToken !== 'undefined') {
+                        showSuccess('Ambas bibliotecas cargadas y disponibles');
+                        
+                        // Probar conexión a Solana
+                        try {
+                            const connection = new solanaWeb3.Connection(
+                                'https://api.mainnet-beta.solana.com',
+                                'confirmed'
+                            );
+                            connection.getVersion()
+                                .then(version => {
+                                    log('success', 'Conexión a Solana establecida: ' + JSON.stringify(version));
+                                })
+                                .catch(err => {
+                                    log('error', 'Error al conectar con Solana: ' + err.message);
+                                });
+                        } catch (e) {
+                            log('error', 'Error al crear conexión: ' + e.message);
+                        }
+                    } else {
+                        showError('Bibliotecas cargadas pero no disponibles globalmente');
+                    }
+                };
                 
-                // Actualizar el botón de quemar
-                this.updateBurnButton();
-              } else {
-                this.elements.tokensEmpty.style.display = 'block';
-                this.elements.tokensList.style.display = 'none';
-                this.elements.burnBtn.style.display = 'none';
-              }
+                script2.onerror = function() {
+                    showError('Error al cargar biblioteca SPL Token');
+                };
+                
+                document.body.appendChild(script2);
+            };
+            
+            script1.onerror = function() {
+                showError('Error al cargar biblioteca Solana Web3.js');
+            };
+            
+            document.body.appendChild(script1);
+        });
+        
+        // Prueba 3: Phantom Wallet
+        document.getElementById('test-phantom').addEventListener('click', function() {
+            log('info', 'Probando Phantom Wallet...');
+            
+            if (typeof window.solana !== 'undefined') {
+                log('success', 'Extensión Phantom detectada');
+                
+                if (window.solana.isPhantom) {
+                    log('success', 'Phantom Wallet confirmado');
+                    
+                    // Probar conexión
+                    log('info', 'Intentando conectar...');
+                    window.solana.connect({ onlyIfTrusted: false })
+                        .then(resp => {
+                            const address = resp.publicKey.toString();
+                            log('success', `Conectado exitosamente a: ${address.substring(0, 6)}...${address.substring(address.length - 4)}`);
+                            showSuccess('Phantom Wallet funciona correctamente');
+                        })
+                        .catch(err => {
+                            log('error', 'Error al conectar: ' + err.message);
+                            showError('Error al conectar con Phantom: ' + err.message);
+                        });
+                } else {
+                    log('error', 'Objeto solana existe pero no es Phantom');
+                    showError('Objeto solana detectado pero no es Phantom');
+                }
             } else {
-              // Mostrar UI de no conectado
-              this.elements.walletConnected.style.display = 'none';
-              this.elements.walletButtons.style.display = 'flex';
-              
-              // Actualizar panel de tokens
-              this.elements.tokensConnectWallet.style.display = 'block';
-              this.elements.tokensEmpty.style.display = 'none';
-              this.elements.tokensList.style.display = 'none';
-              this.elements.burnBtn.style.display = 'none';
-              this.elements.tokensLoading.style.display = 'none';
-              this.elements.txStatus.style.display = 'none';
-              this.elements.donationContainer.style.display = 'none';
+                log('error', 'Phantom Wallet no detectado');
+                showError('Phantom Wallet no está instalado');
             }
-          },
-    
-          // Actualizar el botón de quemar
-          updateBurnButton() {
-            const count = this.state.selectedTokens.length;
-            this.elements.burnBtn.disabled = count === 0 || this.state.pendingBurn;
-            this.elements.burnBtn.textContent = this.state.pendingBurn 
-              ? 'Procesando...' 
-              : count === 0 
-                ? 'Selecciona tokens para quemar' 
-                : `Quemar ${count} token${count !== 1 ? 's' : ''}`;
-          },
-    
-          // Conectar wallet
-          async connectWallet(type) {
-            console.log(`Intentando conectar wallet: ${type}`);
+        });
+        
+        // Prueba 4: Solflare Wallet
+        document.getElementById('test-solflare').addEventListener('click', function() {
+            log('info', 'Probando Solflare Wallet...');
             
-            if (!type) {
-              this.showError('Tipo de wallet no especificado');
-              return;
+            if (typeof window.solflare !== 'undefined') {
+                log('success', 'Extensión Solflare detectada');
+                
+                // Probar conexión
+                log('info', 'Intentando conectar...');
+                window.solflare.connect()
+                    .then(() => {
+                        const address = window.solflare.publicKey.toString();
+                        log('success', `Conectado exitosamente a: ${address.substring(0, 6)}...${address.substring(address.length - 4)}`);
+                        showSuccess('Solflare Wallet funciona correctamente');
+                    })
+                    .catch(err => {
+                        log('error', 'Error al conectar: ' + err.message);
+                        showError('Error al conectar con Solflare: ' + err.message);
+                    });
+            } else {
+                log('error', 'Solflare Wallet no detectado');
+                showError('Solflare Wallet no está instalado');
             }
-    
-            try {
-              // Verificar si el wallet está instalado
-              if (type === 'phantom' && !window?.solana?.isPhantom) {
-                console.log("Phantom no está instalado");
-                window.open('https://phantom.app/', '_blank');
-                throw new Error('Por favor instala Phantom wallet');
-              }
-    
-              if (type === 'solflare' && !window?.solflare) {
-                console.log("Solflare no está instalado");
-                window.open('https://solflare.com', '_blank');
-                throw new Error('Por favor instala Solflare wallet');
-              }
-    
-              let walletProvider;
-              let publicKey;
-    
-              // Conectar con el wallet apropiado
-              if (type === 'phantom') {
-                walletProvider = window.solana;
-                try {
-                  console.log("Solicitando conexión a Phantom...");
-                  this.showError("Conectando con Phantom...");
-                  const response = await walletProvider.connect();
-                  publicKey = response.publicKey.toString();
-                  console.log("Conectado a Phantom:", publicKey);
-                } catch (err) {
-                  console.error("Error específico con Phantom:", err);
-                  throw new Error('Error al conectar con Phantom: ' + (err.message || 'Error desconocido'));
-                }
-              } else if (type === 'solflare') {
-                walletProvider = window.solflare;
-                try {
-                  console.log("Solicitando conexión a Solflare...");
-                  this.showError("Conectando con Solflare...");
-                  await walletProvider.connect();
-                  publicKey = walletProvider.publicKey.toString();
-                  console.log("Conectado a Solflare:", publicKey);
-                } catch (err) {
-                  console.error("Error específico con Solflare:", err);
-                  throw new Error('Error al conectar con Solflare: ' + (err.message || 'Error desconocido'));
-                }
-              }
-    
-              // Validar que se obtuvo la clave pública
-              if (!publicKey) {
-                throw new Error('No se pudo obtener la clave pública del wallet');
-              }
-    
-              // Establecer el wallet en el estado
-              this.state.wallet = {
-                address: publicKey,
-                type: type,
-                provider: walletProvider
-              };
-    
-              // Actualizar la UI
-              this.updateUI();
-              
-              // Cargar los tokens
-              this.elements.error.style.display = 'none';
-              await this.fetchTokens();
-              
-            } catch (err) {
-              console.error('Error de conexión:', err);
-              this.showError(err.message || 'Error al conectar el wallet');
-            }
-          },
-    
-          // Desconectar wallet
-          disconnectWallet() {
-            console.log("Desconectando wallet...");
-            
-            // Intentar desconectar el wallet si es posible
-            if (this.state.wallet && this.state.wallet.provider && this.state.wallet.provider.disconnect) {
-              try {
-                this.state.wallet.provider.disconnect();
-                console.log("Wallet desconectado correctamente");
-              } catch (e) {
-                console.warn("No se pudo desconectar el wallet:", e);
-              }
-            }
-            
-            this.state.wallet = null;
-            this.state.tokens = [];
-            this.state.selectedTokens = [];
-            this.elements.txStatus.style.display = 'none';
-            this.elements.donationContainer.style.display = 'none';
-            this.updateUI();
-            
-            this.showError("Wallet desconectado");
-          },
-    
-          // Obtener tokens reales del wallet
-          async fetchTokens() {
-            console.log("Obteniendo tokens...");
-            
-            if (!this.state.wallet || !this.state.connection) {
-              this.showError('Wallet no conectado o conexión a Solana no disponible');
-              return;
-            }
-    
-            try {
-              this.elements.tokensLoading.style.display = 'block';
-              this.elements.tokensList.style.display = 'none';
-              this.elements.burnBtn.style.display = 'none';
-              this.elements.tokensEmpty.style.display = 'none';
-    
-              // Convertir la dirección a PublicKey para usar con la API
-              const { PublicKey } = solanaWeb3;
-              const walletPublicKey = new PublicKey(this.state.wallet.address);
-              
-              console.log("Consultando tokens para:", this.state.wallet.address);
-              
-              // Obtener todas las cuentas de tokens del propietario
-              const tokenAccounts = await this.state.connection.getParsedTokenAccountsByOwner(
-                walletPublicKey,
-                {
-                  programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'), // Dirección del programa Token de Solana
-                }
-              );
-              
-              console.log("Tokens encontrados:", tokenAccounts.value.length);
-              
-              // Procesar los resultados y extraer información relevante
-              const tokens = token
-```javascript
-// Procesar los resultados y extraer información relevante
-const tokens = tokenAccounts.value.map(accountInfo => {
-const tokenData = accountInfo.account.data.parsed.info;
-const mint = tokenData.mint;
-const balance = tokenData.tokenAmount.uiAmount;
-const decimals = tokenData.tokenAmount.decimals;
-return {
-mint,
-balance,
-decimals,
-// Usamos la dirección del mint abreviada como símbolo temporal
-// En una implementación completa, podríamos buscar los metadatos para obtener el símbolo real
-symbol: mint.substring(0, 3) + '...' + mint.substring(mint.length - 3),
-tokenAccount: accountInfo.pubkey.toString() // Guardamos la cuenta de token para usarla al quemar
-};
-})
-// Filtrar solo tokens con balance positivo
-.filter(token => token.balance > 0);
-console.log("Tokens con balance positivo:", tokens.length);
-this.state.tokens = tokens;
-this.renderTokensList();
-this.elements.tokensLoading.style.display = 'none';
-if (tokens.length > 0) {
-this.elements.tokensList.style.display = 'block';
-this.elements.burnBtn.style.display = 'block';
-} else {
-this.elements.tokensEmpty.style.display = 'block';
-}
-this.updateBurnButton();
-} catch (err) {
-console.error('Error al obtener tokens:', err);
-this.showError('Error al obtener tokens: ' + (err.message || 'Error desconocido'));
-this.elements.tokensLoading.style.display = 'none';
-this.elements.tokensEmpty.style.display = 'block';
-}
-},
-// Renderizar la lista de tokens
-renderTokensList() {
-console.log("Renderizando lista de tokens...");
-this.elements.tokensList.innerHTML = '';
-this.state.tokens.forEach(token => {
-const tokenElement = document.createElement('div');
-tokenElement.className = 'stb-token-item';
-const checkbox = document.createElement('input');
-checkbox.type = 'checkbox';
-checkbox.className = 'stb-token-checkbox';
-checkbox.dataset.mint = token.mint;
-checkbox.dataset.tokenAccount = token.tokenAccount;
-checkbox.checked = this.state.selectedTokens.some(t => t.mint === token.mint);
-// Manejar cambios en la selección
-checkbox.addEventListener('change', () => {
-if (checkbox.checked) {
-this.state.selectedTokens.push({
-mint: token.mint,
-symbol: token.symbol,
-balance: token.balance,
-decimals: token.decimals,
-tokenAccount: token.tokenAccount
-});
-console.log(Token seleccionado: ${token.symbol});
-} else {
-this.state.selectedTokens = this.state.selectedTokens.filter(t => t.mint !== token.mint);
-console.log(Token deseleccionado: ${token.symbol});
-}
-this.updateBurnButton();
-});
-const tokenDetails = document.createElement('span');
-tokenDetails.className = 'stb-token-details';
-tokenDetails.textContent = ${token.symbol} - ${token.balance};
-tokenElement.appendChild(checkbox);
-tokenElement.appendChild(tokenDetails);
-this.elements.tokensList.appendChild(tokenElement);
-});
-},
-// Mostrar el diálogo de confirmación
-showBurnConfirmation() {
-console.log("Mostrando diálogo de confirmación...");
-if (this.state.selectedTokens.length === 0) {
-this.showError('Selecciona al menos un token para quemar');
-return;
-}
-// Llenar el diálogo de confirmación
-this.elements.confirmTokensList.innerHTML = '';
-this.state.selectedTokens.forEach(token => {
-const tokenElement = document.createElement('div');
-tokenElement.className = 'stb-confirm-token-item';
-tokenElement.innerHTML = <span>${token.symbol}</span> <span>${token.balance}</span> ;
-this.elements.confirmTokensList.appendChild(tokenElement);
-});
-// Mostrar el diálogo
-this.elements.confirmDialog.style.display = 'flex';
-},
-// Cancelar el proceso de quema
-cancelBurn() {
-console.log("Quema cancelada");
-this.elements.confirmDialog.style.display = 'none';
-},
-// Proceder con la quema después de la confirmación
-async proceedWithBurn() {
-console.log("Procediendo con la quema de tokens...");
-this.elements.confirmDialog.style.display = 'none';
-if (!this.state.wallet || this.state.selectedTokens.length === 0) {
-this.showError('Wallet no conectado o no hay tokens seleccionados');
-return;
-}
-try {
-this.state.pendingBurn = true;
-this.updateBurnButton();
-// Mostrar estado de la transacción
-this.elements.txStatus.style.display = 'block';
-this.elements.txMessage.textContent = 'Preparando transacción...';
-this.elements.txHash.innerHTML = '';
-// Ocultar donación mientras se procesa
-this.elements.donationContainer.style.display = 'none';
-// Usar las bibliotecas de Solana para quemar tokens
-const { PublicKey, Transaction } = solanaWeb3;
-const { Token, TOKEN_PROGRAM_ID } = splToken;
-// Para cada token seleccionado
-for (const token of this.state.selectedTokens) {
-console.log(Quemando token: ${token.symbol} (${token.balance}));
-this.elements.txMessage.textContent = Quemando ${token.symbol}...;
-// Crear una nueva transacción
-const transaction = new Transaction();
-// Parámetros para la instrucción de quema
-const sourcePublicKey = new PublicKey(this.state.wallet.address);
-const mintPublicKey = new PublicKey(token.mint);
-const accountPublicKey = new PublicKey(token.tokenAccount);
-// Calcular la cantidad a quemar (considerando decimales)
-const amount = Math.floor(token.balance * (10 token.decimals));
-console.log(Cantidad a quemar: ${amount} (${token.balance} con ${token.decimals} decimales));
-// Crear instrucción para quemar tokens
-const burnInstruction = Token.createBurnInstruction(
-TOKEN_PROGRAM_ID,
-mintPublicKey,
-accountPublicKey,
-sourcePublicKey,
-[],
-amount
-);
-// Añadir la instrucción a la transacción
-transaction.add(burnInstruction);
-// Obtener bloque reciente para la validez de la transacción
-console.log("Obteniendo blockhash reciente...");
-const { blockhash } = await this.state.connection.getRecentBlockhash();
-transaction.recentBlockhash = blockhash;
-transaction.feePayer = sourcePublicKey;
-// Firma y envío de la transacción
-console.log("Solicitando firma de la transacción...");
-let signed;
-if (this.state.wallet.type === 'phantom') {
-signed = await window.solana.signTransaction(transaction);
-} else if (this.state.wallet.type === 'solflare') {
-signed = await window.solflare.signTransaction(transaction);
-}
-console.log("Enviando transacción...");
-const signature = await this.state.connection.sendRawTransaction(signed.serialize());
-console.log("Transacción enviada, firma:", signature);
-// Esperar confirmación
-this.elements.txMessage.textContent = Confirmando transacción...;
-console.log("Esperando confirmación...");
-await this.state.connection.confirmTransaction(signature);
-console.log("Transacción confirmada");
-// Mostrar hash de transacción
-this.elements.txHash.innerHTML = <a href="https://explorer.solana.com/tx/${signature}" target="_blank"> ${signature.substring(0, 12)}...${signature.substring(signature.length - 12)} </a> ;
-}
-// Actualizar mensaje final
-this.elements.txMessage.textContent = 'Tokens quemados exitosamente';
-console.log("Todos los tokens quemados exitosamente");
-// Mostrar opción de donación (estilo Sol Incinerator)
-this.elements.donationContainer.style.display = 'block';
-// Actualizar la lista de tokens
-await this.fetchTokens();
-this.state.selectedTokens = [];
-} catch (err) {
-console.error('Error al quemar tokens:', err);
-this.showError('Error al quemar tokens: ' + (err.message || 'Error desconocido'));
-this.elements.txMessage.textContent = 'Error en la transacción';
-} finally {
-this.state.pendingBurn = false;
-this.updateBurnButton();
-}
-},
-// Función para enviar una donación
-async sendDonation() {
-console.log("Enviando donación...");
-if (!this.state.wallet) {
-this.showError('Wallet no conectado');
-return;
-}
-try {
-this.elements.donateBtn.textContent = 'Enviando...';
-this.elements.donateBtn.disabled = true;
-// Crear una transacción para enviar SOL
-const { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = solanaWeb3;
-const transaction = new Transaction();
-// Convertir SOL a lamports (1 SOL = 1,000,000,000 lamports)
-const lamports = this.state.selectedDonationAmount * LAMPORTS_PER_SOL;
-console.log(Enviando donación de ${this.state.selectedDonationAmount} SOL (${lamports} lamports));
-// Crear instrucción de transferencia
-const transferInstruction = SystemProgram.transfer({
-fromPubkey: new PublicKey(this.state.wallet.address),
-toPubkey: new PublicKey(this.state.donationAddress),
-lamports: lamports
-});
-// Añadir la instrucción a la transacción
-transaction.add(transferInstruction);
-// Obtener bloque reciente
-console.log("Obteniendo blockhash para donación...");
-const { blockhash } = await this.state.connection.getRecentBlockhash();
-transaction.recentBlockhash = blockhash;
-transaction.feePayer = new PublicKey(this.state.wallet.address);
-// Firmar y enviar la transacción
-console.log("Solicitando firma para donación...");
-let signed;
-if (this.state.wallet.type === 'phantom') {
-signed = await window.solana.signTransaction(transaction);
-} else if (this.state.wallet.type === 'solflare') {
-signed = await window.solflare.signTransaction(transaction);
-}
-console.log("Enviando transacción de donación...");
-const signature = await this.state.connection.sendRawTransaction(signed.serialize());
-console.log("Donación enviada, firma:", signature);
-// Esperar confirmación
-console.log("Esperando confirmación de donación...");
-await this.state.connection.confirmTransaction(signature);
-console.log("Donación confirmada");
-// Mostrar agradecimiento
-this.elements.thankYou.style.display = 'block';
-this.elements.donateBtn.style.display = 'none';
-} catch (err) {
-console.error('Error al enviar donación:', err);
-this.showError('Error al enviar donación: ' + (err.message || 'Error desconocido'));
-} finally {
-this.elements.donateBtn.textContent = 'Enviar Donación';
-this.elements.donateBtn.disabled = false;
-}
-}
-};
-// Inicializar la aplicación
-SolanaBurner.init();
-}
-</script>
+        });
+        
+        // Mensaje inicial
+        log('info', 'Página de diagnóstico cargada. Haz clic en los botones para probar cada componente.');
+    </script>
 </body>
 </html>
