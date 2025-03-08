@@ -1,418 +1,431 @@
-"use client";
-import React, { useState, useCallback, useEffect } from "react";
-
-function MainComponent() {
-  const [wallet, setWallet] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [selectedTokens, setSelectedTokens] = useState([]);
-  const [availableTokens, setAvailableTokens] = useState([]);
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  // Función para obtener el balance de tokens
-  const fetchTokenBalance = async (address, walletType) => {
-    if (!address || !walletType) {
-      setError("Dirección del wallet o tipo no válido");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const requestBody = {
-        walletType,
-        action: "balance",
-        mint: address,
-      };
-
-      console.log("Solicitando tokens para la dirección:", address);
-
-      const response = await fetch("/api/web3integration", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          `Error del servidor (${response.status}): ${
-            errorData.error || response.statusText
-          }`
-        );
-      }
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Error desconocido al obtener tokens");
-      }
-
-      if (!Array.isArray(data.tokens)) {
-        throw new Error("Formato de respuesta inválido: no se encontraron tokens");
-      }
-
-      setAvailableTokens(data.tokens || []);
-      setLastUpdated(new Date().toLocaleTimeString());
-
-      // Mensaje informativo si no hay tokens
-      if (data.tokens.length === 0) {
-        console.log("No se encontraron tokens para la dirección:", address);
-      } else {
-        console.log(`Se encontraron ${data.tokens.length} tokens para la dirección:`, address);
-      }
-    } catch (err) {
-      console.error("Error en fetchTokenBalance:", err);
-      setError(err.message);
-      setAvailableTokens([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Función para conectar el wallet
-  const handleConnect = useCallback(async (type) => {
-    if (!type) {
-      setError("Tipo de wallet no especificado");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Verificar si el wallet está instalado
-      if (type === "phantom" && !window?.solana?.isPhantom) {
-        window.open("https://phantom.app/", "_blank");
-        throw new Error("Por favor instala Phantom wallet");
-      }
-
-      if (type === "solflare" && !window?.solflare) {
-        window.open("https://solflare.com", "_blank");
-        throw new Error("Por favor instala Solflare wallet");
-      }
-
-      let walletProvider;
-      let publicKey;
-
-      // Conectar con el wallet apropiado
-      if (type === "phantom") {
-        walletProvider = window.solana;
-        try {
-          // Asegurarse de que Phantom esté listo antes de conectar
-          if (!walletProvider.isConnected) {
-            const response = await walletProvider.connect();
-            publicKey = response.publicKey;
-          } else {
-            // Si ya está conectado, simplemente obtener la clave pública
-            publicKey = walletProvider.publicKey;
-          }
-        } catch (err) {
-          console.error("Error al conectar con Phantom:", err);
-          throw new Error(
-            "Error al conectar con Phantom: " +
-              (err.message || "Error desconocido")
-          );
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quemador de Tokens Solana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <!-- Librerías de Solana corregidas -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.js"></script>
+    <script>
+        // Hacer que las bibliotecas estén disponibles globalmente
+        const solanaWeb3 = window.solanaWeb3;
+        const splToken = window.splToken;
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: black;
         }
-      } else if (type === "solflare") {
-        walletProvider = window.solflare;
-        try {
-          // Verificar si Solflare ya está conectado
-          if (!walletProvider.isConnected) {
-            await walletProvider.connect();
-          }
-          publicKey = walletProvider.publicKey;
-        } catch (err) {
-          console.error("Error al conectar con Solflare:", err);
-          throw new Error(
-            "Error al conectar con Solflare: " +
-              (err.message || "Error desconocido")
-          );
-        }
-      }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-      // Validar que se obtuvo la clave pública
-      if (!publicKey) {
-        throw new Error("No se pudo obtener la clave pública del wallet");
-      }
+    <script type="text/babel">
+        "use client";
+        const { useState, useCallback, useEffect } = React;
 
-      const walletAddress = publicKey.toString();
+        function MainComponent() {
+            const [wallet, setWallet] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [selectedTokens, setSelectedTokens] = useState([]);
+            const [availableTokens, setAvailableTokens] = useState([]);
+            const [lastUpdated, setLastUpdated] = useState(null);
 
-      // Establecer el wallet en el estado
-      setWallet({
-        address: walletAddress,
-        type: type,
-        publicKey: publicKey,
-      });
+            // Función para obtener el balance de tokens - CORREGIDA
+            const fetchTokenBalance = async (address, walletType) => {
+                if (!address || !walletType) {
+                    setError("Dirección del wallet o tipo no válido");
+                    return;
+                }
 
-      // Obtener los tokens disponibles
-      await fetchTokenBalance(walletAddress, type);
-    } catch (err) {
-      console.error("Error de conexión:", err);
-      setError(err.message || "Error al conectar el wallet");
-      setWallet(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+                setLoading(true);
+                setError(null);
 
-  // Función para quemar tokens
-  const handleBurn = useCallback(async () => {
-    if (!wallet || !wallet.address) {
-      setError("Wallet no conectado");
-      return;
-    }
+                try {
+                    // Asegúrate de que la conexión se inicialice correctamente
+                    const connection = new solanaWeb3.Connection(
+                        solanaWeb3.clusterApiUrl('mainnet-beta')
+                    );
 
-    if (selectedTokens.length === 0) {
-      setError("Por favor selecciona tokens para quemar");
-      return;
-    }
+                    // Convertir la dirección del string a PublicKey
+                    const publicKey = new solanaWeb3.PublicKey(address);
+                    
+                    // Obtener todas las cuentas de token que pertenecen a la dirección
+                    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+                        publicKey,
+                        {
+                            programId: new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                        }
+                    );
 
-    setLoading(true);
-    setError(null);
+                    // Transformar los datos a un formato útil
+                    const tokens = tokenAccounts.value.map(accountInfo => {
+                        const parsedInfo = accountInfo.account.data.parsed.info;
+                        const mint = parsedInfo.mint;
+                        const tokenAmount = parsedInfo.tokenAmount;
+                        
+                        return {
+                            mint: mint,
+                            symbol: mint.slice(0, 4), // Si no tienes un registro de símbolos, puedes mostrar parte del mint
+                            balance: tokenAmount.uiAmount.toString(),
+                            decimals: tokenAmount.decimals
+                        };
+                    }).filter(token => parseFloat(token.balance) > 0); // Solo tokens con balance positivo
 
-    try {
-      let burnedTokens = 0;
-      let failedTokens = 0;
-      const results = [];
-
-      for (const tokenMint of selectedTokens) {
-        const token = availableTokens.find((t) => t.mint === tokenMint);
-        if (!token) {
-          console.warn(`Token no encontrado en la lista de disponibles: ${tokenMint}`);
-          failedTokens++;
-          continue;
-        }
-
-        console.log(`Intentando quemar ${token.balance} ${token.symbol} (${tokenMint})`);
-
-        try {
-          const response = await fetch("/api/web3integration", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              walletType: wallet.type,
-              action: "burn",
-              mint: tokenMint,
-              amount: token.balance,
-            }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-              `Error del servidor (${response.status}): ${
-                errorData.error || response.statusText
-              }`
-            );
-          }
-
-          const data = await response.json();
-          if (!data.success) {
-            throw new Error(data.error || "Error desconocido al quemar tokens");
-          }
-
-          burnedTokens++;
-          results.push({
-            success: true,
-            symbol: token.symbol,
-            amount: token.balance,
-            txid: data.txid,
-          });
-          console.log(`Quemado exitoso: ${token.balance} ${token.symbol}, TxID: ${data.txid}`);
-        } catch (err) {
-          console.error(`Error al quemar ${token.symbol}:`, err);
-          failedTokens++;
-          results.push({
-            success: false,
-            symbol: token.symbol,
-            amount: token.balance,
-            error: err.message
-          });
-        }
-      }
-
-      // Actualizar la lista de tokens después de la operación
-      await fetchTokenBalance(wallet.address, wallet.type);
-      setSelectedTokens([]);
-
-      // Mostrar mensaje de resultado según lo que ocurrió
-      if (burnedTokens > 0 && failedTokens === 0) {
-        alert(`¡${burnedTokens} token(s) quemados exitosamente!`);
-      } else if (burnedTokens > 0 && failedTokens > 0) {
-        alert(`${burnedTokens} token(s) quemados exitosamente, pero ${failedTokens} token(s) fallaron.`);
-      } else if (burnedTokens === 0 && failedTokens > 0) {
-        setError(`No se pudo quemar ningún token. Por favor intenta nuevamente.`);
-      }
-
-    } catch (err) {
-      console.error("Error al quemar tokens:", err);
-      setError(err.message || "Error desconocido al quemar tokens");
-    } finally {
-      setLoading(false);
-    }
-  }, [wallet, selectedTokens, availableTokens, fetchTokenBalance]);
-
-  // Limpiar errores cuando cambian componentes importantes
-  useEffect(() => {
-    setError(null);
-  }, [wallet, selectedTokens]);
-
-  return (
-    <div className="min-h-screen bg-black relative overflow-hidden font-inter">
-      {/* Fondo con cuadrícula */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, #1a1a1a 1px, transparent 1px), linear-gradient(to bottom, #1a1a1a 1px, transparent 1px)",
-          backgroundSize: "50px 50px",
-        }}
-      />
-
-      <div className="relative z-10 container mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-[#00FFFF] text-4xl md:text-6xl font-bold mb-4">
-            QUEMADOR DE TOKENS SOLANA
-          </h1>
-          <p className="text-gray-300 text-lg md:text-xl">
-            Conecta tu wallet para empezar
-          </p>
-        </div>
-
-        {/* Mostrar errores */}
-        {error && (
-          <div className="mb-8 p-4 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-center">
-            {error}
-          </div>
-        )}
-
-        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          {/* Panel de Estado del Wallet */}
-          <div className="bg-[#0000004d] backdrop-blur-sm p-8 rounded-xl border border-gray-800">
-            <h2 className="text-[#ff00ff] text-2xl font-bold mb-4">
-              Estado del Wallet
-            </h2>
-            {wallet ? (
-              <div className="text-gray-300">
-                <p>
-                  Conectado: {wallet.address.slice(0, 6)}...
-                  {wallet.address.slice(-4)}
-                </p>
-                <p>Tipo: {wallet.type}</p>
-                <button
-                  onClick={() => {
-                    setWallet(null);
+                    setAvailableTokens(tokens);
+                    setLastUpdated(new Date().toLocaleTimeString());
+                    
+                    if (tokens.length === 0) {
+                        console.log("No se encontraron tokens para la dirección:", address);
+                    } else {
+                        console.log(`Se encontraron ${tokens.length} tokens para la dirección:`, address);
+                    }
+                } catch (err) {
+                    console.error("Error en fetchTokenBalance:", err);
+                    setError("Error al cargar tokens: " + err.message);
                     setAvailableTokens([]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Función para conectar el wallet - CORREGIDA
+            const handleConnect = useCallback(async (type) => {
+                if (!type) {
+                    setError("Tipo de wallet no especificado");
+                    return;
+                }
+
+                setLoading(true);
+                setError(null);
+
+                try {
+                    // Verificar si el wallet está instalado
+                    if (type === "phantom" && !window?.solana?.isPhantom) {
+                        window.open("https://phantom.app/", "_blank");
+                        throw new Error("Por favor instala Phantom wallet");
+                    }
+
+                    if (type === "solflare" && !window?.solflare) {
+                        window.open("https://solflare.com", "_blank");
+                        throw new Error("Por favor instala Solflare wallet");
+                    }
+
+                    let walletProvider;
+                    let publicKey;
+
+                    // Conectar con el wallet apropiado
+                    if (type === "phantom") {
+                        walletProvider = window.solana;
+                        try {
+                            // Asegurarse de que Phantom esté listo antes de conectar
+                            if (!walletProvider.isConnected) {
+                                const response = await walletProvider.connect();
+                                publicKey = response.publicKey;
+                            } else {
+                                // Si ya está conectado, simplemente obtener la clave pública
+                                publicKey = walletProvider.publicKey;
+                            }
+                        } catch (err) {
+                            console.error("Error al conectar con Phantom:", err);
+                            throw new Error(
+                                "Error al conectar con Phantom: " +
+                                (err.message || "Error desconocido")
+                            );
+                        }
+                    } else if (type === "solflare") {
+                        walletProvider = window.solflare;
+                        try {
+                            // Verificar si Solflare ya está conectado
+                            if (!walletProvider.isConnected) {
+                                await walletProvider.connect();
+                            }
+                            publicKey = walletProvider.publicKey;
+                        } catch (err) {
+                            console.error("Error al conectar con Solflare:", err);
+                            throw new Error(
+                                "Error al conectar con Solflare: " +
+                                (err.message || "Error desconocido")
+                            );
+                        }
+                    }
+
+                    // Validar que se obtuvo la clave pública
+                    if (!publicKey) {
+                        throw new Error("No se pudo obtener la clave pública del wallet");
+                    }
+
+                    const walletAddress = publicKey.toString();
+
+                    // Establecer el wallet en el estado
+                    setWallet({
+                        address: walletAddress,
+                        type: type,
+                        publicKey: publicKey,
+                    });
+
+                    // Obtener los tokens disponibles
+                    await fetchTokenBalance(walletAddress, type);
+                } catch (err) {
+                    console.error("Error de conexión:", err);
+                    setError(err.message || "Error al conectar el wallet");
+                    setWallet(null);
+                } finally {
+                    setLoading(false);
+                }
+            }, []);
+
+            // Función para quemar tokens - CORREGIDA
+            const handleBurn = useCallback(async () => {
+                if (!wallet || !wallet.address) {
+                    setError("Wallet no conectado");
+                    return;
+                }
+
+                if (selectedTokens.length === 0) {
+                    setError("Por favor selecciona tokens para quemar");
+                    return;
+                }
+
+                setLoading(true);
+                setError(null);
+
+                try {
+                    const connection = new solanaWeb3.Connection(
+                        solanaWeb3.clusterApiUrl('mainnet-beta')
+                    );
+                    
+                    let burnedTokens = 0;
+                    let failedTokens = 0;
+                    
+                    for (const tokenMint of selectedTokens) {
+                        try {
+                            const token = availableTokens.find((t) => t.mint === tokenMint);
+                            if (!token) continue;
+                            
+                            // Crear la transacción para quemar tokens
+                            let walletProvider = null;
+                            if (wallet.type === "phantom") {
+                                walletProvider = window.solana;
+                            } else if (wallet.type === "solflare") {
+                                walletProvider = window.solflare;
+                            }
+                            
+                            if (!walletProvider) {
+                                throw new Error("Wallet no disponible");
+                            }
+                            
+                            // Crear una transacción para quemar los tokens
+                            const mintPublicKey = new solanaWeb3.PublicKey(token.mint);
+                            const tokenAmount = parseFloat(token.balance) * Math.pow(10, token.decimals);
+                            
+                            // Intentar quemar el token
+                            const transaction = new solanaWeb3.Transaction().add(
+                                splToken.createBurnInstruction(
+                                    mintPublicKey,  // Token a quemar
+                                    mintPublicKey,  // Cuenta de token del usuario
+                                    wallet.publicKey, // Propietario
+                                    tokenAmount     // Cantidad a quemar
+                                )
+                            );
+                            
+                            // Firmar y enviar la transacción
+                            const { signature } = await walletProvider.signAndSendTransaction(transaction);
+                            
+                            // Confirmar la transacción
+                            await connection.confirmTransaction(signature, 'confirmed');
+                            
+                            burnedTokens++;
+                            console.log(`Token ${token.symbol} quemado exitosamente. TxID: ${signature}`);
+                        } catch (err) {
+                            console.error(`Error al quemar token ${tokenMint}:`, err);
+                            failedTokens++;
+                        }
+                    }
+                    
+                    // Actualizar lista de tokens después de quemar
+                    await fetchTokenBalance(wallet.address, wallet.type);
                     setSelectedTokens([]);
-                  }}
-                  className="mt-4 bg-red-900/20 text-red-400 px-4 py-2 rounded-md border border-red-800 hover:bg-red-800/30"
-                >
-                  Desconectar
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <button
-                  onClick={() => handleConnect("phantom")}
-                  disabled={loading}
-                  className="w-full bg-gray-900 text-[#00FFFF] px-6 py-3 rounded-md border border-[#00FFFF] hover:bg-[#00FFFF]/10"
-                >
-                  {loading ? "Conectando..." : "Conectar Phantom"}
-                </button>
-                <button
-                  onClick={() => handleConnect("solflare")}
-                  disabled={loading}
-                  className="w-full bg-gray-900 text-[#FFA500] px-6 py-3 rounded-md border border-[#FFA500] hover:bg-[#FFA500]/10"
-                >
-                  {loading ? "Conectando..." : "Conectar Solflare"}
-                </button>
-              </div>
-            )}
-          </div>
+                    
+                    if (burnedTokens > 0) {
+                        alert(`¡${burnedTokens} token(s) quemados exitosamente!`);
+                    } else {
+                        setError("No se pudo quemar ningún token. Por favor intenta nuevamente.");
+                    }
+                } catch (err) {
+                    console.error("Error al quemar tokens:", err);
+                    setError("Error: " + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            }, [wallet, selectedTokens, availableTokens]);
 
-          {/* Panel de Tokens Disponibles */}
-          <div className="bg-[#0000004d] backdrop-blur-sm p-8 rounded-xl border border-gray-800">
-            <h2 className="text-[#00FF00] text-2xl font-bold mb-4">
-              Tokens Disponibles
-            </h2>
-            {loading ? (
-              <p className="text-gray-400">Cargando tokens...</p>
-            ) : wallet ? (
-              availableTokens.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="max-h-[300px] overflow-y-auto space-y-2">
-                    {availableTokens.map((token) => (
-                      <div
-                        key={token.mint}
-                        className="flex items-center justify-between p-3 border border-gray-800 rounded hover:border-gray-700"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedTokens.includes(token.mint)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedTokens([
-                                  ...selectedTokens,
-                                  token.mint,
-                                ]);
-                              } else {
-                                setSelectedTokens(
-                                  selectedTokens.filter((t) => t !== token.mint)
-                                );
-                              }
-                            }}
-                            className="form-checkbox h-5 w-5 text-[#00FF00] rounded border-gray-700 bg-gray-900"
-                          />
-                          <span className="text-gray-300">
-                            {token.symbol} - {token.balance}
-                          </span>
+            // Limpiar errores cuando cambian componentes importantes
+            useEffect(() => {
+                setError(null);
+            }, [wallet, selectedTokens]);
+
+            return (
+                <div className="min-h-screen bg-black relative overflow-hidden font-inter">
+                    {/* Fondo con cuadrícula */}
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            backgroundImage:
+                                "linear-gradient(to right, #1a1a1a 1px, transparent 1px), linear-gradient(to bottom, #1a1a1a 1px, transparent 1px)",
+                            backgroundSize: "50px 50px",
+                        }}
+                    />
+
+                    <div className="relative z-10 container mx-auto px-4 py-12">
+                        <div className="text-center mb-12">
+                            <h1 className="text-[#00FFFF] text-4xl md:text-6xl font-bold mb-4">
+                                QUEMADOR DE TOKENS SOLANA
+                            </h1>
+                            <p className="text-gray-300 text-lg md:text-xl">
+                                Conecta tu wallet para empezar
+                            </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleBurn}
-                    disabled={loading || selectedTokens.length === 0}
-                    className="w-full bg-gray-900 text-[#FF0000] px-6 py-3 rounded-md border border-[#FF0000] hover:bg-[#FF0000]/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading
-                      ? "Quemando..."
-                      : `Quemar ${selectedTokens.length} Token${
-                          selectedTokens.length !== 1 ? "s" : ""
-                        }`}
-                  </button>
+
+                        {/* Mostrar errores */}
+                        {error && (
+                            <div className="mb-8 p-4 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-center">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+                            {/* Panel de Estado del Wallet */}
+                            <div className="bg-[#0000004d] backdrop-blur-sm p-8 rounded-xl border border-gray-800">
+                                <h2 className="text-[#ff00ff] text-2xl font-bold mb-4">
+                                    Estado del Wallet
+                                </h2>
+                                {wallet ? (
+                                    <div className="text-gray-300">
+                                        <p>
+                                            Conectado: {wallet.address.slice(0, 6)}...
+                                            {wallet.address.slice(-4)}
+                                        </p>
+                                        <p>Tipo: {wallet.type}</p>
+                                        <button
+                                            onClick={() => {
+                                                setWallet(null);
+                                                setAvailableTokens([]);
+                                                setSelectedTokens([]);
+                                            }}
+                                            className="mt-4 bg-red-900/20 text-red-400 px-4 py-2 rounded-md border border-red-800 hover:bg-red-800/30"
+                                        >
+                                            Desconectar
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <button
+                                            onClick={() => handleConnect("phantom")}
+                                            disabled={loading}
+                                            className="w-full bg-gray-900 text-[#00FFFF] px-6 py-3 rounded-md border border-[#00FFFF] hover:bg-[#00FFFF]/10"
+                                        >
+                                            {loading ? "Conectando..." : "Conectar Phantom"}
+                                        </button>
+                                        <button
+                                            onClick={() => handleConnect("solflare")}
+                                            disabled={loading}
+                                            className="w-full bg-gray-900 text-[#FFA500] px-6 py-3 rounded-md border border-[#FFA500] hover:bg-[#FFA500]/10"
+                                        >
+                                            {loading ? "Conectando..." : "Conectar Solflare"}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Panel de Tokens Disponibles */}
+                            <div className="bg-[#0000004d] backdrop-blur-sm p-8 rounded-xl border border-gray-800">
+                                <h2 className="text-[#00FF00] text-2xl font-bold mb-4">
+                                    Tokens Disponibles
+                                </h2>
+                                {loading ? (
+                                    <p className="text-gray-400">Cargando tokens...</p>
+                                ) : wallet ? (
+                                    availableTokens.length > 0 ? (
+                                        <div className="space-y-4">
+                                            <div className="max-h-[300px] overflow-y-auto space-y-2">
+                                                {availableTokens.map((token) => (
+                                                    <div
+                                                        key={token.mint}
+                                                        className="flex items-center justify-between p-3 border border-gray-800 rounded hover:border-gray-700"
+                                                    >
+                                                        <div className="flex items-center space-x-3">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedTokens.includes(token.mint)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedTokens([
+                                                                            ...selectedTokens,
+                                                                            token.mint,
+                                                                        ]);
+                                                                    } else {
+                                                                        setSelectedTokens(
+                                                                            selectedTokens.filter((t) => t !== token.mint)
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="form-checkbox h-5 w-5 text-[#00FF00] rounded border-gray-700 bg-gray-900"
+                                                            />
+                                                            <span className="text-gray-300">
+                                                                {token.symbol} - {token.balance}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button
+                                                onClick={handleBurn}
+                                                disabled={loading || selectedTokens.length === 0}
+                                                className="w-full bg-gray-900 text-[#FF0000] px-6 py-3 rounded-md border border-[#FF0000] hover:bg-[#FF0000]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {loading
+                                                    ? "Quemando..."
+                                                    : `Quemar ${selectedTokens.length} Token${
+                                                        selectedTokens.length !== 1 ? "s" : ""
+                                                    }`}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-400">
+                                            No se encontraron tokens en este wallet
+                                        </p>
+                                    )
+                                ) : (
+                                    <p className="text-gray-400">
+                                        Conecta tu wallet para ver tus tokens
+                                    </p>
+                                )}
+                                {lastUpdated && (
+                                    <p className="text-gray-500 text-sm mt-4">
+                                        Última actualización: {lastUpdated}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <footer className="text-gray-500 text-center mt-12">
+                            Ejecutando en Solana Mainnet • {new Date().getFullYear()}
+                        </footer>
+                    </div>
                 </div>
-              ) : (
-                <p className="text-gray-400">
-                  No se encontraron tokens en este wallet
-                </p>
-              )
-            ) : (
-              <p className="text-gray-400">
-                Conecta tu wallet para ver tus tokens
-              </p>
-            )}
-            {lastUpdated && (
-              <p className="text-gray-500 text-sm mt-4">
-                Última actualización: {lastUpdated}
-              </p>
-            )}
-          </div>
-        </div>
+            );
+        }
 
-        <footer className="text-gray-500 text-center mt-12">
-          Ejecutando en Solana Mainnet • {new Date().getFullYear()}
-        </footer>
-      </div>
-    </div>
-  );
-}
-
-export default MainComponent;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainComponent />);
+    </script>
+</body>
+</html>
