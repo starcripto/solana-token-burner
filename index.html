@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quemador de Tokens Solana</title>
     <style>
-        /* Estilos simplificados */
+        /* Los mismos estilos que antes... */
         body {
             font-family: Arial, sans-serif;
             background-color: #222;
@@ -133,6 +133,14 @@
         .checkbox {
             margin-right: 10px;
         }
+        
+        #library-status {
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -143,12 +151,13 @@
         </div>
         
         <div id="status"></div>
+        <div id="library-status">Cargando bibliotecas de Solana...</div>
         
         <div class="card">
             <h2>Conectar Wallet</h2>
             <div class="button-container">
-                <button id="connect-phantom">Conectar con Phantom</button>
-                <button id="connect-solflare">Conectar con Solflare</button>
+                <button id="connect-phantom" disabled>Conectar con Phantom</button>
+                <button id="connect-solflare" disabled>Conectar con Solflare</button>
             </div>
             
             <div id="wallet-info">
@@ -167,17 +176,14 @@
         </div>
         
         <div id="footer">
-            Ejecutando en Solana Mainnet • 2023
+            Ejecutando en Solana Mainnet • <span id="year">2023</span>
         </div>
     </div>
 
-    <!-- Cargar primero Solana Web3 -->
-    <script src="https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js"></script>
-    
-    <!-- Luego cargar SPL Token -->
-    <script src="https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js"></script>
-
     <script>
+        // Actualizar el año actual
+        document.getElementById('year').textContent = new Date().getFullYear();
+        
         // Estado de la aplicación
         const appState = {
             walletConnected: false,
@@ -186,8 +192,63 @@
             walletProvider: null,
             tokens: [],
             selectedTokens: [],
-            connection: null
+            connection: null,
+            libraries: {
+                web3Loaded: false,
+                splTokenLoaded: false
+            }
         };
+        
+        // Cargador de bibliotecas
+        function loadLibraries() {
+            const libraryStatus = document.getElementById('library-status');
+            
+            // Cargar primero Web3.js
+            libraryStatus.textContent = 'Cargando Solana Web3.js...';
+            
+            // Crear elemento de script y cargar Web3.js
+            const web3Script = document.createElement('script');
+            web3Script.src = 'https://cdn.jsdelivr.net/npm/@solana/web3.js@1.73.0/lib/index.iife.min.js';
+            
+            web3Script.onload = function() {
+                console.log('Solana Web3.js cargado correctamente');
+                appState.libraries.web3Loaded = true;
+                libraryStatus.textContent = 'Web3.js cargado. Cargando SPL Token...';
+                
+                // Una vez que Web3.js está cargado, cargar SPL Token
+                const splTokenScript = document.createElement('script');
+                splTokenScript.src = 'https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.6/lib/index.iife.min.js';
+                
+                splTokenScript.onload = function() {
+                    console.log('SPL Token cargado correctamente');
+                    appState.libraries.splTokenLoaded = true;
+                    libraryStatus.textContent = 'Bibliotecas listas. Ahora puedes conectar tu wallet.';
+                    
+                    // Habilitar botones
+                    document.getElementById('connect-phantom').disabled = false;
+                    document.getElementById('connect-solflare').disabled = false;
+                    
+                    // Inicializar conexión de Solana
+                    initConnection();
+                };
+                
+                splTokenScript.onerror = function() {
+                    console.error('Error al cargar SPL Token');
+                    libraryStatus.textContent = 'Error al cargar SPL Token. Intenta recargar la página.';
+                    libraryStatus.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+                };
+                
+                document.body.appendChild(splTokenScript);
+            };
+            
+            web3Script.onerror = function() {
+                console.error('Error al cargar Web3.js');
+                libraryStatus.textContent = 'Error al cargar Solana Web3.js. Intenta recargar la página.';
+                libraryStatus.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+            };
+            
+            document.body.appendChild(web3Script);
+        }
         
         // Funciones básicas
         function showStatus(message, isError = false) {
@@ -248,8 +309,8 @@
         // Inicializar conexión a Solana
         function initConnection() {
             try {
-                if (!solanaWeb3) {
-                    showStatus('Error: Biblioteca Solana Web3 no cargada', true);
+                if (!window.solanaWeb3) {
+                    showStatus('Error: Biblioteca Solana Web3 no disponible', true);
                     return false;
                 }
                 
@@ -277,15 +338,16 @@
                 }
             }
             
+            // Verificar que las bibliotecas estén cargadas
+            if (!window.solanaWeb3 || !window.splToken) {
+                showStatus('Las bibliotecas necesarias no están cargadas correctamente', true);
+                return;
+            }
+            
             try {
                 // Mostrar carga
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('tokens-list').style.display = 'none';
-                
-                // Verificar que las bibliotecas estén cargadas
-                if (!solanaWeb3 || !splToken) {
-                    throw new Error('Las bibliotecas necesarias no están cargadas correctamente');
-                }
                 
                 const { PublicKey } = solanaWeb3;
                 
@@ -324,6 +386,7 @@
                     renderTokens(tokens);
                     document.getElementById('tokens-list').style.display = 'block';
                     document.getElementById('burn-button').style.display = 'block';
+                    showStatus(`Se encontraron ${tokens.length} tokens`);
                 } else {
                     const tokensMessage = document.getElementById('tokens-message');
                     tokensMessage.style.display = 'block';
@@ -388,22 +451,6 @@
             burnButton.disabled = appState.selectedTokens.length === 0;
         }
         
-        // Función para quemar tokens
-        async function burnTokens() {
-            if (appState.selectedTokens.length === 0) {
-                showStatus('No hay tokens seleccionados para quemar', true);
-                return;
-            }
-            
-            try {
-                showStatus('Esta función estará disponible próximamente. Tokens seleccionados: ' + appState.selectedTokens.length);
-                // En una versión completa, aquí implementaríamos la funcionalidad de quema
-            } catch (error) {
-                console.error('Error al quemar tokens:', error);
-                showStatus('Error al quemar tokens: ' + error.message, true);
-            }
-        }
-        
         // Detectar Phantom
         document.getElementById('connect-phantom').addEventListener('click', async () => {
             try {
@@ -413,7 +460,7 @@
                     return;
                 }
                 
-                if (!initConnection()) {
+                if (!appState.connection && !initConnection()) {
                     return;
                 }
                 
@@ -441,7 +488,7 @@
                     return;
                 }
                 
-                if (!initConnection()) {
+                if (!appState.connection && !initConnection()) {
                     return;
                 }
                 
@@ -476,13 +523,12 @@
         
         // Botón para quemar tokens
         document.getElementById('burn-button').addEventListener('click', () => {
-            burnTokens();
+            showStatus('Función de quema próximamente');
         });
 
-        // Inicializar
+        // Cargar las bibliotecas al iniciar
         document.addEventListener('DOMContentLoaded', () => {
-            initConnection();
-            showStatus('Bienvenido al quemador de tokens de Solana');
+            loadLibraries();
         });
     </script>
 </body>
