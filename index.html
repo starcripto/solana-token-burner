@@ -4,248 +4,215 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quemador de Tokens Solana</title>
-    <!-- Precargar las bibliotecas para mejorar la carga -->
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.73.0/lib/index.iife.min.js" as="script">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.6/lib/index.iife.min.js" as="script">
-    
-    <!-- Incluir el mismo CSS que antes -->
     <style>
-      /* Tus estilos actuales... */
-      /* Estilos globales */
-      body {
-        margin: 0;
-        padding: 0;
-        background-color: #121212;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      }
-    
-      #solana-token-burner {
-        color: #fff;
-        max-width: 800px;
-        margin: 20px auto;
-        padding: 20px;
-        background-color: #000;
-        border-radius: 16px;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-      }
-    
-      /* El resto de tus estilos... */
+        /* Estilos simplificados e inline para garantizar que se muestren */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: white;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            background-color: #000;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #00FFFF;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .card {
+            background-color: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            color: #FF00FF;
+            margin-top: 0;
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background-color: #444;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        #connect-phantom {
+            border-color: #00FFFF;
+            color: #00FFFF;
+        }
+        
+        #connect-solflare {
+            border-color: #FFA500;
+            color: #FFA500;
+        }
+        
+        #status {
+            padding: 10px;
+            background-color: rgba(255, 0, 0, 0.2);
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        #wallet-info {
+            display: none;
+        }
+        
+        #footer {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <!-- El mismo HTML que antes -->
-    <div id="solana-token-burner">
-      <!-- Contenido HTML... -->
+    <div class="container">
+        <div class="header">
+            <h1>QUEMADOR DE TOKENS SOLANA</h1>
+            <p>Conecta tu wallet para comenzar</p>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="card">
+            <h2>Conectar Wallet</h2>
+            <div class="button-container">
+                <button id="connect-phantom">Conectar con Phantom</button>
+                <button id="connect-solflare">Conectar con Solflare</button>
+            </div>
+            
+            <div id="wallet-info">
+                <p>Conectado: <span id="wallet-address">No conectado</span></p>
+                <p>Tipo: <span id="wallet-type">Ninguno</span></p>
+                <button id="disconnect">Desconectar</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Tokens Disponibles</h2>
+            <p id="tokens-message">Conecta tu wallet para ver tus tokens</p>
+            <div id="tokens-list" style="display: none;"></div>
+        </div>
+        
+        <div id="footer">
+            Ejecutando en Solana Mainnet • 2023
+        </div>
     </div>
 
-    <!-- SOLUCIÓN: Cargar bibliotecas usando un CDN alternativo y con manejo de errores mejorado -->
     <script>
-      // Inicializar estado global
-      window.SolanaQuemadorState = {
-        loadingStatus: 'pending',
-        web3Loaded: false,
-        splTokenLoaded: false
-      };
-      
-      // Mostrar mensajes de estado
-      function showStatus(message, isError = false) {
-        const errorEl = document.getElementById('stb-error');
-        if (!errorEl) return;
-        
-        errorEl.textContent = message;
-        errorEl.style.display = 'block';
-        
-        if (!isError) {
-          setTimeout(() => {
-            errorEl.style.display = 'none';
-          }, 3000);
-        }
-        
-        console.log(isError ? 'ERROR: ' : 'INFO: ', message);
-      }
-      
-      // Cargar script con reintentos
-      function loadScriptWithRetry(url, alternativeUrl, callback, errorCallback, retries = 2) {
-        let currentTry = 0;
-        let currentUrl = url;
-        
-        function attemptLoad() {
-          const script = document.createElement('script');
-          script.type = 'text/javascript';
-          script.src = currentUrl;
-          
-          script.onload = function() {
-            console.log('Cargado exitosamente:', currentUrl);
-            callback();
-          };
-          
-          script.onerror = function() {
-            currentTry++;
-            console.warn(`Error cargando ${currentUrl}, intento ${currentTry}/${retries + 1}`);
+        // Funciones básicas
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.display = 'block';
+            status.style.backgroundColor = isError ? 'rgba(255, 0, 0, 0.2)' : 'rgba(0, 255, 0, 0.2)';
             
-            if (currentTry === 1 && alternativeUrl) {
-              // Cambiar a URL alternativa en el primer error
-              console.log('Intentando con URL alternativa:', alternativeUrl);
-              currentUrl = alternativeUrl;
-              attemptLoad();
-            } else if (currentTry <= retries) {
-              // Reintentar con la URL actual
-              console.log('Reintentando carga en 1 segundo...');
-              setTimeout(attemptLoad, 1000);
-            } else {
-              // Falló todos los intentos
-              console.error('Fallaron todos los intentos de carga para:', url);
-              errorCallback();
+            if (!isError) {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
             }
-          };
-          
-          document.body.appendChild(script);
         }
         
-        attemptLoad();
-      }
-      
-      // Inicializar la aplicación cuando ambas bibliotecas estén listas
-      function checkAndInitialize() {
-        if (window.SolanaQuemadorState.web3Loaded && window.SolanaQuemadorState.splTokenLoaded) {
-          window.SolanaQuemadorState.loadingStatus = 'loaded';
-          showStatus('Bibliotecas cargadas correctamente. Inicializando aplicación...');
-          
-          // Pequeña pausa para asegurar que todo esté listo
-          setTimeout(() => {
-            initSolanaBurner();
-          }, 500);
+        function updateWalletUI(connected, address = null, type = null) {
+            const walletInfo = document.getElementById('wallet-info');
+            const walletAddress = document.getElementById('wallet-address');
+            const walletType = document.getElementById('wallet-type');
+            const buttonContainer = document.querySelector('.button-container');
+            const tokensMessage = document.getElementById('tokens-message');
+            
+            if (connected && address) {
+                walletInfo.style.display = 'block';
+                buttonContainer.style.display = 'none';
+                walletAddress.textContent = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+                walletType.textContent = type;
+                tokensMessage.textContent = 'No se encontraron tokens en este wallet';
+            } else {
+                walletInfo.style.display = 'none';
+                buttonContainer.style.display = 'flex';
+                tokensMessage.textContent = 'Conecta tu wallet para ver tus tokens';
+            }
         }
-      }
-      
-      // Cargar las bibliotecas
-      document.addEventListener('DOMContentLoaded', function() {
-        showStatus('Cargando bibliotecas de Solana...');
         
-        // Cargar Web3.js primero
-        loadScriptWithRetry(
-          'https://cdn.jsdelivr.net/npm/@solana/web3.js@1.73.0/lib/index.iife.min.js',
-          'https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js',
-          function() {
-            window.SolanaQuemadorState.web3Loaded = true;
-            showStatus('Solana Web3 cargado. Cargando SPL Token...');
-            
-            // Ahora cargar SPL Token
-            loadScriptWithRetry(
-              'https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.6/lib/index.iife.min.js',
-              'https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js',
-              function() {
-                window.SolanaQuemadorState.splTokenLoaded = true;
-                showStatus('SPL Token cargado correctamente.');
-                checkAndInitialize();
-              },
-              function() {
-                window.SolanaQuemadorState.loadingStatus = 'failed';
-                showStatus('No se pudo cargar la biblioteca SPL Token. Intenta actualizar la página.', true);
-              }
-            );
-          },
-          function() {
-            window.SolanaQuemadorState.loadingStatus = 'failed';
-            showStatus('No se pudo cargar la biblioteca Web3. Intenta actualizar la página.', true);
-          }
-        );
-      });
+        // Detectar Phantom
+        document.getElementById('connect-phantom').addEventListener('click', async () => {
+            try {
+                if (typeof window.solana === 'undefined') {
+                    showStatus('Phantom no está instalado. Por favor, instálalo primero.', true);
+                    window.open('https://phantom.app/', '_blank');
+                    return;
+                }
+                
+                showStatus('Conectando con Phantom...');
+                const resp = await window.solana.connect();
+                const address = resp.publicKey.toString();
+                updateWalletUI(true, address, 'Phantom');
+                showStatus('Conectado con Phantom');
+            } catch (error) {
+                console.error('Error al conectar con Phantom:', error);
+                showStatus('Error: ' + (error.message || 'Error desconocido'), true);
+            }
+        });
+        
+        // Detectar Solflare
+        document.getElementById('connect-solflare').addEventListener('click', async () => {
+            try {
+                if (typeof window.solflare === 'undefined') {
+                    showStatus('Solflare no está instalado. Por favor, instálalo primero.', true);
+                    window.open('https://solflare.com/', '_blank');
+                    return;
+                }
+                
+                showStatus('Conectando con Solflare...');
+                await window.solflare.connect();
+                const address = window.solflare.publicKey.toString();
+                updateWalletUI(true, address, 'Solflare');
+                showStatus('Conectado con Solflare');
+            } catch (error) {
+                console.error('Error al conectar con Solflare:', error);
+                showStatus('Error: ' + (error.message || 'Error desconocido'), true);
+            }
+        });
+        
+        // Desconectar wallet
+        document.getElementById('disconnect').addEventListener('click', () => {
+            // Desconectar wallet
+            updateWalletUI(false);
+            showStatus('Wallet desconectado');
+        });
 
-      // Función para inicializar la aplicación
-      function initSolanaBurner() {
-        // Inicializar la aplicación
-        const SolanaBurner = {
-          elements: {
-            // Elementos originales
-            error: document.getElementById('stb-error'),
-            walletConnected: document.querySelector('.stb-wallet-connected'),
-            walletButtons: document.querySelector('.stb-wallet-buttons'),
-            walletAddress: document.getElementById('stb-wallet-address'),
-            walletType: document.getElementById('stb-wallet-type'),
-            disconnectBtn: document.getElementById('stb-disconnect-btn'),
-            connectPhantomBtn: document.getElementById('stb-connect-phantom'),
-            connectSolflareBtn: document.getElementById('stb-connect-solflare'),
-            tokensLoading: document.getElementById('stb-tokens-loading'),
-            tokensConnectWallet: document.getElementById('stb-tokens-connect-wallet'),
-            tokensEmpty: document.getElementById('stb-tokens-empty'),
-            tokensList: document.getElementById('stb-tokens-list'),
-            burnBtn: document.getElementById('stb-burn-btn'),
-            yearSpan: document.getElementById('stb-year'),
-            confirmDialog: document.getElementById('stb-confirm-dialog'),
-            confirmTokensList: document.getElementById('stb-confirm-tokens-list'),
-            confirmCancelBtn: document.getElementById('stb-confirm-cancel'),
-            confirmProceedBtn: document.getElementById('stb-confirm-proceed'),
-            txStatus: document.getElementById('stb-tx-status'),
-            txMessage: document.getElementById('stb-tx-message'),
-            txHash: document.getElementById('stb-tx-hash'),
-            
-            // Elementos de donación
-            donationContainer: document.getElementById('stb-donation-container'),
-            donationAmounts: document.querySelectorAll('.stb-donation-amount'),
-            donationAddress: document.getElementById('stb-donation-address'),
-            donateBtn: document.getElementById('stb-donate-btn'),
-            thankYou: document.getElementById('stb-thank-you')
-          },
-          state: {
-            wallet: null,
-            tokens: [],
-            selectedTokens: [],
-            connection: null,
-            pendingBurn: false,
-            selectedDonationAmount: 0.01,
-            // ⚠️ IMPORTANTE: CAMBIA ESTA DIRECCIÓN POR TU WALLET ⚠️
-            donationAddress: '8W48xBQd9wRfm6Vy6rToeQPRduGpmj6i5qL4hW2AFu9a',
-            rpcEndpoints: [
-              'https://api.mainnet-beta.solana.com',
-              'https://solana-api.projectserum.com',
-              'https://rpc.ankr.com/solana',
-              'https://ssc-dao.genesysgo.net'
-            ],
-            currentEndpointIndex: 0
-          },
-    
-          init() {
-            // Inicializar la conexión a Solana
-            this.initSolanaConnection();
-            this.setupEventListeners();
-            this.updateUI();
-            this.elements.yearSpan.textContent = new Date().getFullYear();
-            
-            // Mostrar la dirección de donación
-            this.elements.donationAddress.textContent = this.state.donationAddress;
-            
-            // Mostrar mensaje de éxito
-            console.log("Aplicación inicializada correctamente");
-          },
-          
-          // El resto del código se mantiene igual...
-        };
-
-        // Inicializar la aplicación
-        try {
-          console.log("Iniciando aplicación...");
-          SolanaBurner.init();
-          console.log("Aplicación iniciada correctamente");
-        } catch (err) {
-          console.error("Error al iniciar la aplicación:", err);
-          showStatus("Error al iniciar la aplicación: " + err.message, true);
-        }
-      }
-    </script>
-
-    <!-- Script auxiliar para garantizar la carga -->
-    <script>
-      // Verificar el estado de carga después de un tiempo
-      setTimeout(function() {
-        if (window.SolanaQuemadorState && window.SolanaQuemadorState.loadingStatus === 'pending') {
-          console.warn("La carga de dependencias está tardando demasiado");
-          document.getElementById('stb-error').textContent = 'La carga está tardando más de lo esperado. Por favor, actualiza la página.';
-          document.getElementById('stb-error').style.display = 'block';
-        }
-      }, 10000);
+        // Mostrar mensaje inicial
+        document.addEventListener('DOMContentLoaded', () => {
+            showStatus('Bienvenido al quemador de tokens de Solana. Esta es una versión básica.', false);
+        });
     </script>
 </body>
 </html>
