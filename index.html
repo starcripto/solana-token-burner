@@ -49,14 +49,39 @@
             cursor: pointer;
             margin-top: 10px;
             width: 100%;
+            font-size: 16px;
         }
         .phantom-button {
             color: #00FFFF;
             border-color: #00FFFF;
         }
+        .phantom-button:hover {
+            background-color: rgba(0, 255, 255, 0.1);
+        }
         .solflare-button {
             color: #FFA500;
             border-color: #FFA500;
+        }
+        .solflare-button:hover {
+            background-color: rgba(255, 165, 0, 0.1);
+        }
+        .burn-button {
+            color: #ff0000;
+            border-color: #ff0000;
+        }
+        .burn-button:hover {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        .burn-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .disconnect-button {
+            color: #ff5555;
+            border-color: #ff5555;
+        }
+        .disconnect-button:hover {
+            background-color: rgba(255, 85, 85, 0.1);
         }
         .error-message {
             background-color: rgba(255, 0, 0, 0.2);
@@ -66,16 +91,57 @@
             margin-bottom: 20px;
             text-align: center;
         }
+        .token-item {
+            padding: 10px;
+            border: 1px solid #333;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .token-item:hover {
+            border-color: #555;
+        }
+        .checkbox {
+            margin-right: 10px;
+        }
+        .token-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+            font-size: 14px;
+        }
+        /* Grid pattern background */
+        .background-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(to right, #1a1a1a 1px, transparent 1px),
+                linear-gradient(to bottom, #1a1a1a 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+        }
     </style>
     
     <!-- Scripts necesarios -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
 </head>
 <body>
+    <!-- Patrón de fondo -->
+    <div class="background-pattern"></div>
+    
     <!-- Contenedor principal -->
     <div id="root">
         <!-- Este mensaje desaparecerá cuando React se cargue correctamente -->
@@ -97,7 +163,51 @@
             const [availableTokens, setAvailableTokens] = React.useState([]);
             const [lastUpdated, setLastUpdated] = React.useState(null);
 
-            // Función simplificada para conectar wallet
+            // Función para obtener tokens
+            const fetchTokens = async (publicKey) => {
+                try {
+                    setLoading(true);
+                    
+                    // Crear conexión a Solana Mainnet
+                    const connection = new solanaWeb3.Connection(
+                        solanaWeb3.clusterApiUrl('mainnet-beta')
+                    );
+                    
+                    // Obtener cuentas de token
+                    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+                        publicKey,
+                        { 
+                            programId: new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") 
+                        }
+                    );
+                    
+                    // Procesar las cuentas de token
+                    const tokens = tokenAccounts.value
+                        .map(accountInfo => {
+                            const parsedInfo = accountInfo.account.data.parsed.info;
+                            return {
+                                mint: parsedInfo.mint,
+                                symbol: parsedInfo.mint.slice(0, 4), // Usamos los primeros caracteres como símbolo
+                                balance: parsedInfo.tokenAmount.uiAmount,
+                                decimals: parsedInfo.tokenAmount.decimals,
+                                tokenAccount: accountInfo.pubkey.toString()
+                            };
+                        })
+                        .filter(token => token.balance > 0); // Solo tokens con saldo positivo
+                    
+                    setAvailableTokens(tokens);
+                    setLastUpdated(new Date().toLocaleTimeString());
+                    
+                    console.log(`Se encontraron ${tokens.length} tokens`);
+                } catch (err) {
+                    console.error("Error al obtener tokens:", err);
+                    setError(`Error al cargar tokens: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Función para conectar wallet
             const handleConnect = async (type) => {
                 setLoading(true);
                 setError(null);
@@ -105,9 +215,11 @@
                 try {
                     // Verificar si el wallet está instalado
                     if (type === "phantom" && !window?.solana?.isPhantom) {
+                        window.open("https://phantom.app/", "_blank");
                         throw new Error("Por favor instala Phantom wallet");
                     }
                     if (type === "solflare" && !window?.solflare) {
+                        window.open("https://solflare.com", "_blank");
                         throw new Error("Por favor instala Solflare wallet");
                     }
                     
@@ -145,13 +257,8 @@
                         publicKey
                     });
                     
-                    // Simular tokens para prueba
-                    setAvailableTokens([
-                        { mint: 'So11111111111111111111111111111111111111112', symbol: 'SOL', balance: '0.25', decimals: 9 },
-                        { mint: '8EoML7gaBJsgn1kLUCiPi7v4GJ2bFQUz6SCJ4X2X1Axw', symbol: 'BONK', balance: '1250000', decimals: 5 }
-                    ]);
-                    
-                    setLastUpdated(new Date().toLocaleTimeString());
+                    // Obtener tokens reales
+                    await fetchTokens(publicKey);
                     
                 } catch (err) {
                     console.error("Error:", err);
@@ -160,6 +267,104 @@
                     setLoading(false);
                 }
             };
+
+            // Función para desconectar
+            const handleDisconnect = () => {
+                setWallet(null);
+                setAvailableTokens([]);
+                setSelectedTokens([]);
+                setError(null);
+            };
+
+            // Función para quemar tokens reales
+            const handleBurn = async () => {
+                if (!wallet || selectedTokens.length === 0) {
+                    setError("Selecciona tokens para quemar");
+                    return;
+                }
+                
+                setLoading(true);
+                setError(null);
+                
+                try {
+                    const connection = new solanaWeb3.Connection(
+                        solanaWeb3.clusterApiUrl('mainnet-beta')
+                    );
+                    
+                    let burnedTokens = 0;
+                    let failedTokens = 0;
+                    
+                    for (const tokenMint of selectedTokens) {
+                        try {
+                            const token = availableTokens.find(t => t.mint === tokenMint);
+                            if (!token) continue;
+                            
+                            // Obtener el proveedor del wallet correcto
+                            const walletProvider = wallet.type === "phantom" ? window.solana : window.solflare;
+                            
+                            // Obtener la cuenta de token asociada
+                            const tokenAccountAddress = await splToken.getAssociatedTokenAddress(
+                                new solanaWeb3.PublicKey(token.mint),
+                                wallet.publicKey
+                            );
+                            
+                            // Calcular la cantidad a quemar (convertir de unidades UI a lamports)
+                            const amount = Math.floor(parseFloat(token.balance) * Math.pow(10, token.decimals));
+                            
+                            // Crear la instrucción de quemado
+                            const burnInstruction = splToken.createBurnCheckedInstruction(
+                                tokenAccountAddress,                    // cuenta de token
+                                new solanaWeb3.PublicKey(token.mint),   // mint del token
+                                wallet.publicKey,                       // propietario
+                                amount,                                 // cantidad a quemar
+                                token.decimals                          // decimales
+                            );
+                            
+                            // Crear y configurar la transacción
+                            const transaction = new solanaWeb3.Transaction().add(burnInstruction);
+                            transaction.feePayer = wallet.publicKey;
+                            
+                            // Obtener el blockhash reciente
+                            const { blockhash } = await connection.getLatestBlockhash();
+                            transaction.recentBlockhash = blockhash;
+                            
+                            // Firmar y enviar la transacción
+                            const signed = await walletProvider.signTransaction(transaction);
+                            const signature = await connection.sendRawTransaction(signed.serialize());
+                            
+                            // Confirmar la transacción
+                            await connection.confirmTransaction(signature, 'confirmed');
+                            
+                            console.log(`Token quemado exitosamente: ${token.symbol}, Tx: ${signature}`);
+                            burnedTokens++;
+                        } catch (err) {
+                            console.error(`Error al quemar token ${tokenMint}:`, err);
+                            failedTokens++;
+                        }
+                    }
+                    
+                    // Actualizar UI después de quemar
+                    if (burnedTokens > 0) {
+                        // Recargar los tokens después de quemar
+                        await fetchTokens(wallet.publicKey);
+                        setSelectedTokens([]);
+                        
+                        alert(`¡${burnedTokens} token(s) quemados exitosamente en Solana Mainnet!`);
+                    } else {
+                        setError("No se pudo quemar ningún token. Revisa la consola para más detalles.");
+                    }
+                } catch (err) {
+                    console.error("Error en el proceso de quemado:", err);
+                    setError(`Error: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Limpiar errores al cambiar wallet o tokens seleccionados
+            React.useEffect(() => {
+                setError(null);
+            }, [wallet, selectedTokens]);
 
             return (
                 <div className="container">
@@ -176,12 +381,13 @@
                             
                             {wallet ? (
                                 <div>
-                                    <p>Conectado: {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</p>
+                                    <p>
+                                        Conectado: {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                                    </p>
                                     <p>Tipo: {wallet.type}</p>
                                     <button 
-                                        onClick={() => setWallet(null)}
-                                        style={{color: 'red', borderColor: 'red'}}
-                                        className="button"
+                                        onClick={handleDisconnect}
+                                        className="button disconnect-button"
                                     >
                                         Desconectar
                                     </button>
@@ -215,35 +421,32 @@
                             ) : wallet ? (
                                 availableTokens.length > 0 ? (
                                     <div>
-                                        <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                                        <div className="token-list">
                                             {availableTokens.map(token => (
-                                                <div key={token.mint} style={{padding: '10px', border: '1px solid #333', marginBottom: '5px', borderRadius: '5px'}}>
-                                                    <label style={{display: 'flex', alignItems: 'center'}}>
-                                                        <input 
-                                                            type="checkbox"
-                                                            checked={selectedTokens.includes(token.mint)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedTokens([...selectedTokens, token.mint]);
-                                                                } else {
-                                                                    setSelectedTokens(selectedTokens.filter(t => t !== token.mint));
-                                                                }
-                                                            }}
-                                                            style={{marginRight: '10px'}}
-                                                        />
-                                                        {token.symbol} - {token.balance}
-                                                    </label>
+                                                <div key={token.mint} className="token-item">
+                                                    <input 
+                                                        type="checkbox"
+                                                        className="checkbox"
+                                                        checked={selectedTokens.includes(token.mint)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedTokens([...selectedTokens, token.mint]);
+                                                            } else {
+                                                                setSelectedTokens(selectedTokens.filter(t => t !== token.mint));
+                                                            }
+                                                        }}
+                                                    />
+                                                    <span>{token.symbol} - {token.balance}</span>
                                                 </div>
                                             ))}
                                         </div>
                                         
                                         <button 
                                             disabled={selectedTokens.length === 0 || loading}
-                                            onClick={() => alert("Función de quemado simulada")}
-                                            className="button"
-                                            style={{marginTop: '10px', color: '#ff0000', borderColor: '#ff0000'}}
+                                            onClick={handleBurn}
+                                            className="button burn-button"
                                         >
-                                            {`Quemar ${selectedTokens.length} Token${selectedTokens.length !== 1 ? "s" : ""}`}
+                                            {loading ? "Quemando..." : `Quemar ${selectedTokens.length} Token${selectedTokens.length !== 1 ? "s" : ""}`}
                                         </button>
                                     </div>
                                 ) : (
@@ -261,7 +464,7 @@
                         </div>
                     </div>
                     
-                    <footer style={{textAlign: 'center', marginTop: '40px', color: '#666'}}>
+                    <footer className="footer">
                         Ejecutando en Solana Mainnet • {new Date().getFullYear()}
                     </footer>
                 </div>
