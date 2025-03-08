@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quemador de Tokens Solana</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:">
     <style>
       /* Estilos globales */
       body {
@@ -542,7 +543,7 @@
                 <button class="stb-donation-amount" data-amount="0.1">0.1 SOL</button>
               </div>
               <div class="stb-donation-address" id="stb-donation-address">
-                <!-- 8W48xBQd9wRfm6Vy6rToeQPRduGpmj6i5qL4hW2AFu9a -->
+                <!-- La dirección se llenará con JavaScript -->
               </div>
               <button class="stb-donate-btn" id="stb-donate-btn">Enviar Donación</button>
               <div class="stb-thank-you" id="stb-thank-you">
@@ -575,13 +576,47 @@
       </div>
     </div>
 
-    <!-- Cargar las bibliotecas de Solana Web3 -->
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
-
+    <!-- IMPORTANTE: Cargar los scripts de manera confiable -->
     <script>
-      // Esperar a que el DOM esté cargado
+      // Función para cargar scripts de manera confiable
+      function loadScript(src, callback) {
+        console.log('Cargando script:', src);
+        var script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = src;
+        script.onload = function() {
+          console.log('Script cargado con éxito:', src);
+          if(callback) callback();
+        };
+        script.onerror = function() {
+          console.error('Error al cargar script:', src);
+          document.getElementById('stb-error').textContent = 'Error al cargar dependencias. Intenta actualizar la página.';
+          document.getElementById('stb-error').style.display = 'block';
+        };
+        document.body.appendChild(script);
+      }
+
+      // Cargar los scripts necesarios
       document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('stb-error').textContent = 'Cargando dependencias...';
+        document.getElementById('stb-error').style.display = 'block';
+        
+        // Cargar web3.js
+        loadScript('https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js', function() {
+          // Después cargar spl-token
+          loadScript('https://unpkg.com/@solana/spl-token@0.3.6/lib/index.iife.min.js', function() {
+            // Iniciar la aplicación
+            document.getElementById('stb-error').textContent = 'Dependencias cargadas. Ya puedes usar la aplicación.';
+            setTimeout(function() {
+              document.getElementById('stb-error').style.display = 'none';
+            }, 3000);
+            initSolanaBurner();
+          });
+        });
+      });
+
+      // Función para inicializar la aplicación
+      function initSolanaBurner() {
         // Inicializar la aplicación
         const SolanaBurner = {
           elements: {
@@ -622,7 +657,8 @@
             connection: null,
             pendingBurn: false,
             selectedDonationAmount: 0.01,
-            donationAddress: '8W48xBQd9wRfm6Vy6rToeQPRduGpmj6i5qL4hW2AFu9a', // IMPORTANTE: Cambia esto por tu dirección de Solana
+            // ⚠️ IMPORTANTE: REEMPLAZA ESTA LÍNEA CON TU DIRECCIÓN DE WALLET DE SOLANA ⚠️
+            donationAddress: '8W48xBQd9wRfm6Vy6rToeQPRduGpmj6i5qL4hW2AFu9a',
             rpcEndpoints: [
               'https://api.mainnet-beta.solana.com',
               'https://solana-api.projectserum.com',
@@ -641,11 +677,16 @@
             
             // Mostrar la dirección de donación
             this.elements.donationAddress.textContent = this.state.donationAddress;
+            
+            // Mostrar mensaje de éxito
+            console.log("Aplicación inicializada correctamente");
           },
           
           // Inicializar la conexión con la mainnet de Solana
           async initSolanaConnection() {
             try {
+              console.log("Iniciando conexión a Solana...");
+              
               // Usar solanaWeb3 del CDN
               const { Connection, clusterApiUrl } = solanaWeb3;
               
@@ -653,9 +694,19 @@
               const randomIndex = Math.floor(Math.random() * this.state.rpcEndpoints.length);
               const endpoint = this.state.rpcEndpoints[randomIndex];
               
+              console.log("Usando endpoint:", endpoint);
+              
               // Crear conexión
               this.state.connection = new Connection(endpoint, 'confirmed');
-              console.log("Conexión a Solana establecida usando:", endpoint);
+              console.log("Conexión a Solana establecida");
+              
+              // Verificar que la conexión funciona
+              this.state.connection.getVersion().then(version => {
+                console.log("Versión de Solana:", version);
+              }).catch(err => {
+                console.error("Error al verificar la versión:", err);
+              });
+              
             } catch (err) {
               console.error("Error al inicializar la conexión con Solana:", err);
               this.showError("No se pudo conectar con la blockchain de Solana");
@@ -663,19 +714,41 @@
           },
     
           setupEventListeners() {
+            console.log("Configurando event listeners...");
+            
             // Botones de conexión
-            this.elements.connectPhantomBtn.addEventListener('click', () => this.connectWallet('phantom'));
-            this.elements.connectSolflareBtn.addEventListener('click', () => this.connectWallet('solflare'));
+            this.elements.connectPhantomBtn.addEventListener('click', () => {
+              console.log("Clic en botón Phantom");
+              this.connectWallet('phantom');
+            });
+            
+            this.elements.connectSolflareBtn.addEventListener('click', () => {
+              console.log("Clic en botón Solflare");
+              this.connectWallet('solflare');
+            });
             
             // Botón de desconexión
-            this.elements.disconnectBtn.addEventListener('click', () => this.disconnectWallet());
+            this.elements.disconnectBtn.addEventListener('click', () => {
+              console.log("Clic en botón desconectar");
+              this.disconnectWallet();
+            });
             
             // Botón de quemar
-            this.elements.burnBtn.addEventListener('click', () => this.showBurnConfirmation());
+            this.elements.burnBtn.addEventListener('click', () => {
+              console.log("Clic en botón quemar");
+              this.showBurnConfirmation();
+            });
             
             // Botones de confirmación
-            this.elements.confirmCancelBtn.addEventListener('click', () => this.cancelBurn());
-            this.elements.confirmProceedBtn.addEventListener('click', () => this.proceedWithBurn());
+            this.elements.confirmCancelBtn.addEventListener('click', () => {
+              console.log("Clic en botón cancelar");
+              this.cancelBurn();
+            });
+            
+            this.elements.confirmProceedBtn.addEventListener('click', () => {
+              console.log("Clic en botón confirmar");
+              this.proceedWithBurn();
+            });
             
             // Configurar eventos para donaciones
             this.elements.donationAmounts.forEach(btn => {
@@ -686,6 +759,7 @@
                 // Seleccionar nuevo monto
                 btn.classList.add('selected');
                 this.state.selectedDonationAmount = parseFloat(btn.dataset.amount);
+                console.log("Monto de donación seleccionado:", this.state.selectedDonationAmount);
               });
             });
             
@@ -693,11 +767,17 @@
             this.elements.donationAmounts[0].classList.add('selected');
             
             // Botón de donación
-            this.elements.donateBtn.addEventListener('click', () => this.sendDonation());
+            this.elements.donateBtn.addEventListener('click', () => {
+              console.log("Clic en botón donar");
+              this.sendDonation();
+            });
+            
+            console.log("Event listeners configurados");
           },
     
           // Mostrar errores
           showError(message) {
+            console.error("ERROR:", message);
             this.elements.error.textContent = message;
             this.elements.error.style.display = 'block';
             
@@ -762,6 +842,8 @@
     
           // Conectar wallet
           async connectWallet(type) {
+            console.log(`Intentando conectar wallet: ${type}`);
+            
             if (!type) {
               this.showError('Tipo de wallet no especificado');
               return;
@@ -770,11 +852,13 @@
             try {
               // Verificar si el wallet está instalado
               if (type === 'phantom' && !window?.solana?.isPhantom) {
+                console.log("Phantom no está instalado");
                 window.open('https://phantom.app/', '_blank');
                 throw new Error('Por favor instala Phantom wallet');
               }
     
               if (type === 'solflare' && !window?.solflare) {
+                console.log("Solflare no está instalado");
                 window.open('https://solflare.com', '_blank');
                 throw new Error('Por favor instala Solflare wallet');
               }
@@ -786,17 +870,25 @@
               if (type === 'phantom') {
                 walletProvider = window.solana;
                 try {
+                  console.log("Solicitando conexión a Phantom...");
+                  this.showError("Conectando con Phantom...");
                   const response = await walletProvider.connect();
                   publicKey = response.publicKey.toString();
+                  console.log("Conectado a Phantom:", publicKey);
                 } catch (err) {
+                  console.error("Error específico con Phantom:", err);
                   throw new Error('Error al conectar con Phantom: ' + (err.message || 'Error desconocido'));
                 }
               } else if (type === 'solflare') {
                 walletProvider = window.solflare;
                 try {
+                  console.log("Solicitando conexión a Solflare...");
+                  this.showError("Conectando con Solflare...");
                   await walletProvider.connect();
                   publicKey = walletProvider.publicKey.toString();
+                  console.log("Conectado a Solflare:", publicKey);
                 } catch (err) {
+                  console.error("Error específico con Solflare:", err);
                   throw new Error('Error al conectar con Solflare: ' + (err.message || 'Error desconocido'));
                 }
               }
@@ -817,6 +909,7 @@
               this.updateUI();
               
               // Cargar los tokens
+              this.elements.error.style.display = 'none';
               await this.fetchTokens();
               
             } catch (err) {
@@ -827,10 +920,13 @@
     
           // Desconectar wallet
           disconnectWallet() {
+            console.log("Desconectando wallet...");
+            
             // Intentar desconectar el wallet si es posible
             if (this.state.wallet && this.state.wallet.provider && this.state.wallet.provider.disconnect) {
               try {
                 this.state.wallet.provider.disconnect();
+                console.log("Wallet desconectado correctamente");
               } catch (e) {
                 console.warn("No se pudo desconectar el wallet:", e);
               }
@@ -842,10 +938,14 @@
             this.elements.txStatus.style.display = 'none';
             this.elements.donationContainer.style.display = 'none';
             this.updateUI();
+            
+            this.showError("Wallet desconectado");
           },
     
           // Obtener tokens reales del wallet
           async fetchTokens() {
+            console.log("Obteniendo tokens...");
+            
             if (!this.state.wallet || !this.state.connection) {
               this.showError('Wallet no conectado o conexión a Solana no disponible');
               return;
@@ -861,6 +961,8 @@
               const { PublicKey } = solanaWeb3;
               const walletPublicKey = new PublicKey(this.state.wallet.address);
               
+              console.log("Consultando tokens para:", this.state.wallet.address);
+              
               // Obtener todas las cuentas de tokens del propietario
               const tokenAccounts = await this.state.connection.getParsedTokenAccountsByOwner(
                 walletPublicKey,
@@ -869,84 +971,80 @@
                 }
               );
               
+              console.log("Tokens encontrados:", tokenAccounts.value.length);
+              
               // Procesar los resultados y extraer información relevante
-              const tokens = tokenAccounts.value.map(accountInfo => {
-                const tokenData = accountInfo.account.data.parsed.info;
-                const mint = tokenData.mint;
-                const balance = tokenData.tokenAmount.uiAmount;
-                const decimals = tokenData.tokenAmount.decimals;
-                
-                return {
-                  mint,
-                  balance,
-                  decimals,
-                  // Usamos la dirección del mint abreviada como símbolo temporal
-                  // En una implementación completa, podríamos buscar los metadatos para obtener el símbolo real
-                  symbol: mint.substring(0, 3) + '...' + mint.substring(mint.length - 3),
-                  tokenAccount: accountInfo.pubkey.toString()  // Guardamos la cuenta de token para usarla al quemar
-                };
-              })
-              // Filtrar solo tokens con balance positivo
-              .filter(token => token.balance > 0);
-              
-              this.state.tokens = tokens;
-              this.renderTokensList();
-              
-              this.elements.tokensLoading.style.display = 'none';
-              
-              if (tokens.length > 0) {
-                this.elements.tokensList.style.display = 'block';
-                this.elements.burnBtn.style.display = 'block';
-              } else {
-                this.elements.tokensEmpty.style.display = 'block';
-              }
-              
-              this.updateBurnButton();
-            } catch (err) {
-              console.error('Error al obtener tokens:', err);
-              this.showError('Error al obtener tokens: ' + (err.message || 'Error desconocido'));
-              this.elements.tokensLoading.style.display = 'none';
-              this.elements.tokensEmpty.style.display = 'block';
-            }
-          },
-    
-          // Renderizar la lista de tokens
-          renderTokensList() {
-            this.elements.tokensList.innerHTML = '';
-            
-            this.state.tokens.forEach(token => {
-              const tokenElement = document.createElement('div');
-              tokenElement.className = 'stb-token-item';
-              
-              const checkbox = document.createElement('input');
-              checkbox.type = 'checkbox';
-              checkbox.className = 'stb-token-checkbox';
-              checkbox.dataset.mint = token.mint;
-              checkbox.dataset.tokenAccount = token.tokenAccount;
-              checkbox.checked = this.state.selectedTokens.some(t => t.mint === token.mint);
-              
-              // Manejar cambios en la selección
-              checkbox.addEventListener('change', () => {
-                if (checkbox.checked) {
-                  this.state.selectedTokens.push({
-                    mint: token.mint,
-                    symbol: token.symbol,
-                    balance: token.balance,
-                    decimals: token.decimals,
-                    tokenAccount: token.tokenAccount
-                  });
-                } else {
-                  this.state.selectedTokens = this.state.selectedTokens.filter(t => t.mint !== token.mint);
-                }
-                this.updateBurnButton();
-              });
-              
-              const tokenDetails = document.createElement('span');
-              tokenDetails.className = 'stb-token-details';
-              tokenDetails.textContent = `${token.symbol} - ${token.balance}`;
-              
-              tokenElement.appendChil
+              const tokens = token
 ```javascript
+// Procesar los resultados y extraer información relevante
+const tokens = tokenAccounts.value.map(accountInfo => {
+const tokenData = accountInfo.account.data.parsed.info;
+const mint = tokenData.mint;
+const balance = tokenData.tokenAmount.uiAmount;
+const decimals = tokenData.tokenAmount.decimals;
+return {
+mint,
+balance,
+decimals,
+// Usamos la dirección del mint abreviada como símbolo temporal
+// En una implementación completa, podríamos buscar los metadatos para obtener el símbolo real
+symbol: mint.substring(0, 3) + '...' + mint.substring(mint.length - 3),
+tokenAccount: accountInfo.pubkey.toString() // Guardamos la cuenta de token para usarla al quemar
+};
+})
+// Filtrar solo tokens con balance positivo
+.filter(token => token.balance > 0);
+console.log("Tokens con balance positivo:", tokens.length);
+this.state.tokens = tokens;
+this.renderTokensList();
+this.elements.tokensLoading.style.display = 'none';
+if (tokens.length > 0) {
+this.elements.tokensList.style.display = 'block';
+this.elements.burnBtn.style.display = 'block';
+} else {
+this.elements.tokensEmpty.style.display = 'block';
+}
+this.updateBurnButton();
+} catch (err) {
+console.error('Error al obtener tokens:', err);
+this.showError('Error al obtener tokens: ' + (err.message || 'Error desconocido'));
+this.elements.tokensLoading.style.display = 'none';
+this.elements.tokensEmpty.style.display = 'block';
+}
+},
+// Renderizar la lista de tokens
+renderTokensList() {
+console.log("Renderizando lista de tokens...");
+this.elements.tokensList.innerHTML = '';
+this.state.tokens.forEach(token => {
+const tokenElement = document.createElement('div');
+tokenElement.className = 'stb-token-item';
+const checkbox = document.createElement('input');
+checkbox.type = 'checkbox';
+checkbox.className = 'stb-token-checkbox';
+checkbox.dataset.mint = token.mint;
+checkbox.dataset.tokenAccount = token.tokenAccount;
+checkbox.checked = this.state.selectedTokens.some(t => t.mint === token.mint);
+// Manejar cambios en la selección
+checkbox.addEventListener('change', () => {
+if (checkbox.checked) {
+this.state.selectedTokens.push({
+mint: token.mint,
+symbol: token.symbol,
+balance: token.balance,
+decimals: token.decimals,
+tokenAccount: token.tokenAccount
+});
+console.log(Token seleccionado: ${token.symbol});
+} else {
+this.state.selectedTokens = this.state.selectedTokens.filter(t => t.mint !== token.mint);
+console.log(Token deseleccionado: ${token.symbol});
+}
+this.updateBurnButton();
+});
+const tokenDetails = document.createElement('span');
+tokenDetails.className = 'stb-token-details';
+tokenDetails.textContent = ${token.symbol} - ${token.balance};
 tokenElement.appendChild(checkbox);
 tokenElement.appendChild(tokenDetails);
 this.elements.tokensList.appendChild(tokenElement);
@@ -954,6 +1052,7 @@ this.elements.tokensList.appendChild(tokenElement);
 },
 // Mostrar el diálogo de confirmación
 showBurnConfirmation() {
+console.log("Mostrando diálogo de confirmación...");
 if (this.state.selectedTokens.length === 0) {
 this.showError('Selecciona al menos un token para quemar');
 return;
@@ -971,10 +1070,12 @@ this.elements.confirmDialog.style.display = 'flex';
 },
 // Cancelar el proceso de quema
 cancelBurn() {
+console.log("Quema cancelada");
 this.elements.confirmDialog.style.display = 'none';
 },
 // Proceder con la quema después de la confirmación
 async proceedWithBurn() {
+console.log("Procediendo con la quema de tokens...");
 this.elements.confirmDialog.style.display = 'none';
 if (!this.state.wallet || this.state.selectedTokens.length === 0) {
 this.showError('Wallet no conectado o no hay tokens seleccionados');
@@ -994,6 +1095,7 @@ const { PublicKey, Transaction } = solanaWeb3;
 const { Token, TOKEN_PROGRAM_ID } = splToken;
 // Para cada token seleccionado
 for (const token of this.state.selectedTokens) {
+console.log(Quemando token: ${token.symbol} (${token.balance}));
 this.elements.txMessage.textContent = Quemando ${token.symbol}...;
 // Crear una nueva transacción
 const transaction = new Transaction();
@@ -1003,6 +1105,7 @@ const mintPublicKey = new PublicKey(token.mint);
 const accountPublicKey = new PublicKey(token.tokenAccount);
 // Calcular la cantidad a quemar (considerando decimales)
 const amount = Math.floor(token.balance * (10 token.decimals));
+console.log(Cantidad a quemar: ${amount} (${token.balance} con ${token.decimals} decimales));
 // Crear instrucción para quemar tokens
 const burnInstruction = Token.createBurnInstruction(
 TOKEN_PROGRAM_ID,
@@ -1015,25 +1118,32 @@ amount
 // Añadir la instrucción a la transacción
 transaction.add(burnInstruction);
 // Obtener bloque reciente para la validez de la transacción
+console.log("Obteniendo blockhash reciente...");
 const { blockhash } = await this.state.connection.getRecentBlockhash();
 transaction.recentBlockhash = blockhash;
 transaction.feePayer = sourcePublicKey;
 // Firma y envío de la transacción
+console.log("Solicitando firma de la transacción...");
 let signed;
 if (this.state.wallet.type === 'phantom') {
 signed = await window.solana.signTransaction(transaction);
 } else if (this.state.wallet.type === 'solflare') {
 signed = await window.solflare.signTransaction(transaction);
 }
+console.log("Enviando transacción...");
 const signature = await this.state.connection.sendRawTransaction(signed.serialize());
+console.log("Transacción enviada, firma:", signature);
 // Esperar confirmación
 this.elements.txMessage.textContent = Confirmando transacción...;
+console.log("Esperando confirmación...");
 await this.state.connection.confirmTransaction(signature);
+console.log("Transacción confirmada");
 // Mostrar hash de transacción
 this.elements.txHash.innerHTML = <a href="https://explorer.solana.com/tx/${signature}" target="_blank"> ${signature.substring(0, 12)}...${signature.substring(signature.length - 12)} </a> ;
 }
 // Actualizar mensaje final
 this.elements.txMessage.textContent = 'Tokens quemados exitosamente';
+console.log("Todos los tokens quemados exitosamente");
 // Mostrar opción de donación (estilo Sol Incinerator)
 this.elements.donationContainer.style.display = 'block';
 // Actualizar la lista de tokens
@@ -1050,6 +1160,7 @@ this.updateBurnButton();
 },
 // Función para enviar una donación
 async sendDonation() {
+console.log("Enviando donación...");
 if (!this.state.wallet) {
 this.showError('Wallet no conectado');
 return;
@@ -1062,6 +1173,7 @@ const { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = solanaWeb3;
 const transaction = new Transaction();
 // Convertir SOL a lamports (1 SOL = 1,000,000,000 lamports)
 const lamports = this.state.selectedDonationAmount * LAMPORTS_PER_SOL;
+console.log(Enviando donación de ${this.state.selectedDonationAmount} SOL (${lamports} lamports));
 // Crear instrucción de transferencia
 const transferInstruction = SystemProgram.transfer({
 fromPubkey: new PublicKey(this.state.wallet.address),
@@ -1071,19 +1183,25 @@ lamports: lamports
 // Añadir la instrucción a la transacción
 transaction.add(transferInstruction);
 // Obtener bloque reciente
+console.log("Obteniendo blockhash para donación...");
 const { blockhash } = await this.state.connection.getRecentBlockhash();
 transaction.recentBlockhash = blockhash;
 transaction.feePayer = new PublicKey(this.state.wallet.address);
 // Firmar y enviar la transacción
+console.log("Solicitando firma para donación...");
 let signed;
 if (this.state.wallet.type === 'phantom') {
 signed = await window.solana.signTransaction(transaction);
 } else if (this.state.wallet.type === 'solflare') {
 signed = await window.solflare.signTransaction(transaction);
 }
+console.log("Enviando transacción de donación...");
 const signature = await this.state.connection.sendRawTransaction(signed.serialize());
+console.log("Donación enviada, firma:", signature);
 // Esperar confirmación
+console.log("Esperando confirmación de donación...");
 await this.state.connection.confirmTransaction(signature);
+console.log("Donación confirmada");
 // Mostrar agradecimiento
 this.elements.thankYou.style.display = 'block';
 this.elements.donateBtn.style.display = 'none';
@@ -1098,7 +1216,7 @@ this.elements.donateBtn.disabled = false;
 };
 // Inicializar la aplicación
 SolanaBurner.init();
-});
+}
 </script>
 </body>
 </html>
